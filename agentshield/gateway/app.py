@@ -165,6 +165,13 @@ class CheckRequest(BaseModel):
     # the call resolves to UNTRUSTED.
     source: str | None = None
     provenance_token: str | None = None
+    # Session the token is bound to (single-use tokens may pin one; a
+    # mismatch resolves UNTRUSTED). Optional: unbound tokens verify anywhere.
+    session_id: str | None = None
+    # Cross-agent correlation IDs, propagated into the ToolCall, every audit
+    # record, and the approval args hash. Optional (backward compatible).
+    trace_id: str | None = None
+    parent_id: str | None = None
     context: str = ""
     metadata: dict = Field(default_factory=dict)
 
@@ -207,12 +214,20 @@ def dashboard() -> HTMLResponse:
 
 @app.post("/v1/check", response_model=CheckResponse,
           dependencies=[Depends(require_api_key)])
-def check(req: CheckRequest) -> CheckResponse:
-    source = resolve(req.source, req.provenance_token)
+def check(req: CheckRequest,
+          x_trace_id: str | None = Header(default=None),
+          x_parent_id: str | None = Header(default=None)) -> CheckResponse:
+    # Trace IDs ride in the body first, then the X-Trace-Id / X-Parent-Id
+    # headers (agent frameworks that cannot touch the body can still
+    # correlate), then absent (None — still fully enforced).
+    source = resolve(req.source, req.provenance_token,
+                     session_id=req.session_id)
     call = ToolCall(
         tool_name=req.tool_name,
         arguments=req.arguments,
         source=source,
+        trace_id=req.trace_id or x_trace_id,
+        parent_id=req.parent_id or x_parent_id,
         context=req.context,
         metadata=req.metadata,
     )
@@ -254,6 +269,8 @@ def set_enforce(body: EnforceUpdate) -> dict:
     note = {
         "ts": _time.time(),
         "call_id": f"admin_{_secrets.token_hex(6)}",
+        "trace_id": None,
+        "parent_id": None,
         "tool": "admin",
         # Not a hold: without this marker the approval queue would list
         # admin toggle notes as human-approval work items.
@@ -306,11 +323,15 @@ def approvals_pending() -> dict:
                     "tool": e.get("tool"),
                     "arguments": e.get("arguments", {}),
                     "source": e.get("source"),
+                    "trace_id": e.get("trace_id"),
+                    "parent_id": e.get("parent_id"),
                     "decision": e.get("decision"),
                     "reasons": e.get("reasons", []),
                     "args_hash": args_hash(e.get("tool", ""),
                                            e.get("arguments", {}),
-                                           e.get("metadata", {}))})
+                                           e.get("metadata", {}),
+                                           e.get("trace_id"),
+                                           e.get("parent_id"))})
     return {"pending": out}
 
 
@@ -336,6 +357,7 @@ def evidence(limit: int = Query(default=20, ge=1, le=500)) -> dict:
     return {"health": health(),
             "enforced": shield.enforce,
             "provenance_dev_mode": insecure_dev_mode(),
+            "manifest_enforced": shield.manifest_enforced,
             "entries": shield.audit.tail(limit)}
 
 

@@ -21,7 +21,10 @@ source above `untrusted` must be backed by a valid HMAC token (see
 provenance.py and mint_token):
 
     {"to": "...", "_agentshield": {"source": "user", "token": "<hmac>",
-                                   "context": "<doc>"}}
+                                   "session_id": "<session>",
+                                   "context": "<doc>",
+                                   "trace_id": "<trace>",
+                                   "parent_id": "<parent>"}}
 
 The middleware strips that tag before the real tool sees the arguments. An
 asserted source with no valid token resolves to UNTRUSTED (fail-closed), so a
@@ -42,10 +45,28 @@ from mcp.server.mcpserver import MCPServer
 
 from ..engine_factory import AgentShield
 from ..models import Decision, EnforcementResult, PolicyReason, ToolCall
+from ..policy.manifest import ToolManifest
 from . import input_too_large
 from ..provenance import resolve
 
 _TAG = "_agentshield"
+
+
+def _deny(shield: AgentShield, call: ToolCall, rule: str,
+            detail: str) -> mcp_types.CallToolResult:
+    """Audit a DENY and render it as an inspectable MCP error result."""
+    shield.audit.record(EnforcementResult(
+        call=call, decision=Decision.DENY,
+        reasons=[PolicyReason(rule=rule, decision=Decision.DENY,
+                              detail=detail)],
+        fail_closed=True))
+    return mcp_types.CallToolResult(
+        content=[mcp_types.TextContent(
+            type="text",
+            text=(f"DENIED by AgentShield.\nTool: {call.tool_name}\n"
+                  f"Decision: deny (fail-closed)\nReasons:\n  - [{rule}] {detail}"))],
+        is_error=True,
+    )
 
 
 class EnforcementMiddleware:
@@ -56,11 +77,20 @@ class EnforcementMiddleware:
       * DENY             -> short-circuits with an error result (tool never runs)
       * REQUIRE_APPROVAL -> short-circuits, held for a human (tool never runs)
 
-    Every decision is already written to the audit log by `shield.check`.
+    Two tripwires run before the policy engine: the signed tool manifest
+    (live description+schema vs. the startup signature — catches
+    rug-pull/tool-poisoning) and provenance resolution (replay/expiry/
+    session-checked). Every denial is written to the audit log.
     """
 
-    def __init__(self, shield: AgentShield) -> None:
+    def __init__(self, shield: AgentShield,
+                 manifest: ToolManifest | None = None,
+                 tool_lookup=None) -> None:
         self.shield = shield
+        self.manifest = manifest
+        # Callable mapping a tool name to its live registered tool object
+        # (or None). Injected by build_gateway so tests can snapshot first.
+        self._tool_lookup = tool_lookup
 
     async def __call__(self, ctx, call_next):  # noqa: ANN001 - SDK-typed context
         if ctx.method != "tools/call" or not ctx.params:
@@ -77,7 +107,10 @@ class EnforcementMiddleware:
         tag = arguments.pop(_TAG, {}) or {}
         if not isinstance(tag, dict):
             tag = {}
-        source = resolve(tag.get("source"), tag.get("token"))
+        source = resolve(tag.get("source"), tag.get("token"),
+                         session_id=tag.get("session_id"))
+        trace_id = tag.get("trace_id")
+        parent_id = tag.get("parent_id")
         context = str(tag.get("context", ""))
         if input_too_large(context, arguments):
             return mcp_types.CallToolResult(
@@ -111,9 +144,27 @@ class EnforcementMiddleware:
             tool_name=str(name),
             arguments=arguments,
             source=source,
+            trace_id=trace_id if isinstance(trace_id, str) else None,
+            parent_id=parent_id if isinstance(parent_id, str) else None,
             context=context,
             metadata={"transport": "mcp"},
         )
+        # Signed tool manifest: the live tool's description+schema must
+        # still match the startup signature. A mismatch means the tool was
+        # redefined after registration (rug-pull / tool-poisoning) — DENY
+        # before the policy engine even sees the call.
+        if self.manifest is not None and self._tool_lookup is not None:
+            try:
+                live = self._tool_lookup(str(name))
+            except Exception:
+                live = None
+            if live is not None:
+                ok, why = self.manifest.verify_tool(
+                    str(name), getattr(live, "description", "") or "",
+                    getattr(live, "parameters", None) or {})
+                if not ok:
+                    return _deny(self.shield, call,
+                                 "tool_manifest_mismatch", why)
         result = self.shield.check(call)
 
         if result.decision is Decision.ALLOW:
@@ -155,7 +206,9 @@ def build_gateway(shield: AgentShield | None = None) -> MCPServer:
     )
     # Register our enforcement as the OUTERMOST middleware so it runs before
     # the tool lookup/handler for every request.
-    server.middleware.insert(0, EnforcementMiddleware(shield))
+    # NOTE: demo tools are registered below first; the manifest snapshot is
+    # taken after registration and handed to the middleware, so any later
+    # redefinition (rug-pull/tool-poisoning) trips verification.
 
     @server.tool(description="Search the public web (low sensitivity).")
     def search_web(query: str) -> str:
@@ -179,7 +232,28 @@ def build_gateway(shield: AgentShield | None = None) -> MCPServer:
     def read_customer_db(query: str) -> str:
         return f"[mock] rows for: {query}"
 
+    # Snapshot live tool identities AFTER registration: description+schema
+    # signed with the harness secret. The middleware re-verifies on every
+    # call; without a secret the manifest is unsigned and verification is
+    # skipped but flagged (insecure dev mode).
+    manifest = ToolManifest.from_tools(
+        {t.name: {"description": t.description or "",
+                  "schema": t.parameters or {}}
+         for t in server._tool_manager.list_tools()})
+    server.middleware.insert(
+        0, EnforcementMiddleware(shield, manifest=manifest,
+                                 tool_lookup=_live_tool_lookup(server)))
     return server
+
+
+def _live_tool_lookup(server):
+    """Return a name -> live-tool callable for manifest verification."""
+    def _lookup(name: str):
+        try:
+            return server._tool_manager.get_tool(name)
+        except Exception:
+            return None
+    return _lookup
 
 
 # Entry point:  python -m agentshield.gateway.mcp_gateway   (stdio transport)

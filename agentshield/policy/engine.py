@@ -27,13 +27,18 @@ from ..models import (
     TrustLevel,
     most_restrictive,
 )
+from .manifest import MANIFEST_RULE
 from .models import Policy, ToolPolicy
 
 
 class PolicyEngine:
-    def __init__(self, policy: Policy, detectors: list[Detector]) -> None:
+    def __init__(self, policy: Policy, detectors: list[Detector],
+                 manifest=None) -> None:
         self.policy = policy
         self.detectors = detectors
+        # Signed tool manifest (None = pre-manifest engine, e.g. direct
+        # PolicyEngine constructions in older tests): skips verification.
+        self.manifest = manifest
 
     def evaluate(self, call: ToolCall) -> EnforcementResult:
         reasons: list[PolicyReason] = []
@@ -56,6 +61,19 @@ class PolicyEngine:
             # below so the audit log captures why, but mark fail_closed.
             fail_closed = fail_closed or d is not Decision.ALLOW
             decision = most_restrictive(decision, d)
+
+        # --- Step 0b: signed tool manifest (rug-pull tripwire) -------------
+        if tool_policy is not None and self.manifest is not None:
+            ok, why = self.manifest.verify_policy(
+                call.tool_name, tool_policy.model_dump(mode="json"))
+            if not ok:
+                reasons.append(PolicyReason(
+                    rule=MANIFEST_RULE,
+                    decision=Decision.DENY,
+                    detail=why,
+                ))
+                fail_closed = True
+                decision = most_restrictive(decision, Decision.DENY)
 
         # --- Step 1: baseline allow flag ----------------------------------
         if tool_policy is not None and not tool_policy.allow:

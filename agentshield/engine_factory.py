@@ -21,9 +21,14 @@ from .models import Decision, EnforcementResult, PolicyReason, ToolCall
 from .policy import PolicyEngine
 from .policy.integrity import verify_policy_bytes
 from .policy.loader import load_policy_text
+from .policy.manifest import ToolManifest
 
 
 class AgentShield:
+    @property
+    def manifest_enforced(self) -> bool:
+        """False in insecure dev mode (no harness secret to sign with)."""
+        return self.tool_manifest.enforced
     """The assembled runtime: evaluate a ToolCall, log it, return the result."""
 
     def __init__(self, config: Config | None = None,
@@ -40,7 +45,12 @@ class AgentShield:
         self.policy = load_policy_text(raw.decode("utf-8"),
                                        source=str(policy_path))
         self.detectors = build_detectors(self.config)
-        self.engine = PolicyEngine(self.policy, self.detectors)
+        # Signed tool manifest (trust root: the harness secret). With no
+        # secret the manifest is unsigned and verification is skipped but
+        # flagged via `manifest_enforced` (insecure dev mode philosophy).
+        self.tool_manifest = ToolManifest.from_policy(self.policy)
+        self.engine = PolicyEngine(self.policy, self.detectors,
+                                   manifest=self.tool_manifest)
         self.audit = AuditLog(self.config.audit_path,
                               redact_keys=self.config.redact_keys)
         if enforce is None:

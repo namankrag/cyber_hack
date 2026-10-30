@@ -62,6 +62,14 @@ class ToolCall(BaseModel):
     tool_name: str = Field(min_length=1)
     arguments: dict[str, Any] = Field(default_factory=dict)
 
+    # Cross-agent correlation IDs. Propagated by the gateway (headers and/or
+    # the `_agentshield` tag), written to every audit record, and bound into
+    # the approval args hash. Default None (absent) for backward
+    # compatibility: the caller mints them when correlating a multi-agent
+    # trace; a call without them is still fully enforced.
+    trace_id: str | None = None
+    parent_id: str | None = None
+
     # Provenance of the instruction that led here. Defaults to UNTRUSTED so
     # that anything which fails to establish real provenance is treated as
     # hostile (fail-closed). Trust is raised only via trusted state — never

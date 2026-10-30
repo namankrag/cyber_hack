@@ -117,6 +117,8 @@ class AuditLog:
         entry = {
             "ts": result.evaluated_at,
             "call_id": result.call.id,
+            "trace_id": result.call.trace_id,
+            "parent_id": result.call.parent_id,
             "tool": result.call.tool_name,
             "arguments": self._redact(result.call.arguments),
             "source": result.call.source.value,

@@ -22,8 +22,66 @@ def test_forged_source_without_token_is_untrusted(monkeypatch):
 
 def test_valid_token_is_honored(monkeypatch):
     monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    provenance.reset_replay_cache()
+    tok = provenance.mint_token("user")
+    # v1 single-use format: version.source.session.nonce.expiry.signature
+    assert tok.startswith("v1.user.") and len(tok.split(".")) == 6
+    assert provenance.resolve("user", tok) is TrustLevel.USER
+
+
+def test_replayed_token_is_rejected(monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    provenance.reset_replay_cache()
     tok = provenance.mint_token("user")
     assert provenance.resolve("user", tok) is TrustLevel.USER
+    # Second use of the same token: fail closed, with a replay reason.
+    assert provenance.resolve("user", tok) is TrustLevel.UNTRUSTED
+    level, reason = provenance.resolve_detail("user", tok)
+    assert level is TrustLevel.UNTRUSTED
+    assert "replay" in reason
+
+
+def test_expired_token_is_rejected(monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    provenance.reset_replay_cache()
+    tok = provenance.mint_token("user", expires_in_s=-1)
+    assert provenance.resolve("user", tok) is TrustLevel.UNTRUSTED
+    _, reason = provenance.resolve_detail("user", tok)
+    assert "expired" in reason
+
+
+def test_token_bound_to_session(monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    provenance.reset_replay_cache()
+    tok = provenance.mint_token("user", session_id="sess-1")
+    assert provenance.resolve("user", tok, session_id="sess-1") is TrustLevel.USER
+    # Same token in another session (or none): fail closed.
+    assert provenance.resolve("user", provenance.mint_token(
+        "user", session_id="sess-1"), session_id="sess-2") is TrustLevel.UNTRUSTED
+    tok2 = provenance.mint_token("user", session_id="sess-1")
+    _, reason2 = provenance.resolve_detail("user", tok2, session_id="other")
+    assert "session" in reason2
+    # Unbound tokens keep the pre-item-3 behavior: valid in any session.
+    assert provenance.resolve(
+        "user", provenance.mint_token("user")) is TrustLevel.USER
+
+
+def test_legacy_and_forged_tokens_are_rejected(monkeypatch):
+    import hashlib as _hashlib
+    import hmac as _hmac
+
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    provenance.reset_replay_cache()
+    # Pre-item-3 bare-HMAC format no longer verifies: fail closed.
+    legacy = _hmac.new(b"s3cr3t", b"user", _hashlib.sha256).hexdigest()
+    assert provenance.resolve("user", legacy) is TrustLevel.UNTRUSTED
+    # Wrong-secret signature and truncated tokens: fail closed.
+    bad = provenance.mint_token("user", secret="wrong-secret")
+    assert provenance.resolve("user", bad) is TrustLevel.UNTRUSTED
+    assert provenance.resolve("user", "v1.user...deadbeef") is TrustLevel.UNTRUSTED
+    # Source mismatch: a user token never elevates an untrusted claim.
+    tok = provenance.mint_token("user")
+    assert provenance.resolve("system", tok) is TrustLevel.UNTRUSTED
 
 
 def test_dev_mode_without_secret_is_flagged(monkeypatch):
@@ -125,6 +183,48 @@ def test_most_restrictive_is_monotonic():
     assert most_restrictive(Decision.ALLOW, Decision.DENY) is Decision.DENY
     assert most_restrictive(Decision.DENY, Decision.ALLOW) is Decision.DENY
     assert most_restrictive(Decision.REQUIRE_APPROVAL, Decision.ALLOW) is Decision.REQUIRE_APPROVAL
+
+
+def test_manifest_valid_passes_silently(tmp_path, monkeypatch):
+    """With a secret, an untampered tool verifies and enforces normally."""
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    shield = _shield(tmp_path)
+    assert shield.manifest_enforced is True
+    r = shield.check(ToolCall(tool_name="search_web",
+                              arguments={"query": "vendors"}))
+    assert r.decision is Decision.ALLOW
+    assert not [x for x in r.reasons if x.rule == "tool_manifest_mismatch"]
+
+
+def test_manifest_tamper_denies(tmp_path, monkeypatch):
+    """A governed tool redefined after startup is DENIED, inspectably.
+
+    search_web is low-sensitivity and the call is otherwise benign, so the
+    policy alone would ALLOW — only the manifest tripwire can DENY here.
+    """
+    monkeypatch.setenv("AGENTSHIELD_HARNESS_SECRET", "s3cr3t")
+    shield = _shield(tmp_path)
+    shield.policy.tools["search_web"].allow_sources = ["user"]  # rug-pull
+    r = shield.check(ToolCall(tool_name="search_web",
+                              arguments={"query": "vendors"}))
+    assert r.decision is Decision.DENY
+    assert r.reasons[0].rule == "tool_manifest_mismatch"
+    assert r.fail_closed is True
+
+
+def test_manifest_dev_mode_flagged_not_enforced(tmp_path, monkeypatch):
+    """No secret: manifest is unsigned, verification skipped but flagged."""
+    monkeypatch.delenv("AGENTSHIELD_HARNESS_SECRET", raising=False)
+    shield = _shield(tmp_path)
+    assert shield.manifest_enforced is False
+    ok, why = shield.tool_manifest.verify_policy(
+        "search_web",
+        shield.policy.tools["search_web"].model_dump(mode="json"))
+    assert ok and "insecure dev mode" in why
+    r = shield.check(ToolCall(tool_name="search_web",
+                              arguments={"query": "vendors"}))
+    assert r.decision is Decision.ALLOW
+    assert not [x for x in r.reasons if x.rule == "tool_manifest_mismatch"]
 
 
 def test_detection_blocks_even_with_user_source(tmp_path):

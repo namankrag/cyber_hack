@@ -54,9 +54,23 @@ radius of a successful prompt injection**, not to perfectly detect injections.
   the optional LLM detector helps but is probabilistic. Enforcement does not
   depend on the detector score alone — provenance and policy stand on their own.
 - **A compromised harness or leaked secret.** If `AGENTSHIELD_HARNESS_SECRET`
-  leaks, trust claims can be forged. Current tokens bind to the asserted source,
-  **not** yet to a per-call nonce or session, so a captured token can be
-  **replayed**. *Planned hardening:* bind tokens to a session id + nonce + expiry.
+  leaks, trust claims can be forged. Provenance tokens are single-use (random
+  nonce + replay cache), short-lived (expiry), and optionally session-bound:
+  a replayed, expired, forged, or session-mismatched token resolves to
+  **UNTRUSTED** with an inspectable reason. *Residual:* the replay cache is
+  per-process memory — across multiple gateway workers, install a shared
+  backend via `provenance.set_replay_cache` (the `ReplayCache` interface is
+  small enough for Redis), or a token spent in one worker could still verify
+  in another.
+- **Tool rug-pulls / tool-poisoning.** Governed tool definitions are
+  HMAC-signed at startup into a tool manifest (trust root: the harness
+  secret — same as provenance tokens). Every in-process check re-verifies
+  the tool's current policy entry; every MCP call re-verifies the live
+  description + input schema. A post-registration change (description or
+  schema swapped, rules edited in memory) is DENIED with an inspectable
+  `tool_manifest_mismatch` reason. With no secret configured the manifest is
+  unsigned and verification is skipped — explicitly flagged via
+  `manifest_enforced == false` (insecure dev mode, never silent).
 - **Tools that bypass the PEP.** AgentShield only governs calls that flow through
   the MCP gateway or the `guard` wrapper. A tool invoked directly, around the
   enforcement point, is not protected. The `/v1/check` HTTP endpoint is a
@@ -75,6 +89,17 @@ radius of a successful prompt injection**, not to perfectly detect injections.
   arguments to a third-party provider; treat it as a deliberate data-sharing
   feature.
 
+## Cross-agent trace propagation
+
+- `trace_id` / `parent_id` ride the `ToolCall`, every audit JSONL record
+  (including approval and admin lines), the HTTP gateway (body fields, else
+  the `X-Trace-Id` / `X-Parent-Id` headers — body wins), and the MCP
+  `_agentshield` tag. The approval queue binds both IDs into `args_hash`,
+  so an approval for one trace does not authorize the same arguments
+  replayed under another trace.
+- Trace IDs are caller-minted correlation hints (`None` when absent — fully
+  backward compatible), **not** trust: enforcement never depends on them.
+
 ## Operator checklist
 
 - [ ] Set `AGENTSHIELD_HARNESS_SECRET` (else runs in insecure dev mode — flagged in `/health`).
@@ -90,7 +115,7 @@ radius of a successful prompt injection**, not to perfectly detect injections.
 
 ## Roadmap (deferred hardening)
 
-Session/nonce-bound provenance tokens · upstream MCP proxy passthrough ·
+Upstream MCP proxy passthrough (tool manifest already covers registered tools) ·
 local-model detector (no data egress) · CI + dependency lockfiles ·
 Postgres-backed audit with rotation · OPA policy backend · structured request-id logging.
 

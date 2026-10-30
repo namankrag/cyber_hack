@@ -20,10 +20,20 @@ from ..engine_factory import AgentShield
 from ..models import Decision, ToolCall
 
 
-def args_hash(tool_name: str, arguments: dict, metadata: dict | None = None) -> str:
-    canonical = json.dumps({"tool": tool_name, "arguments": arguments,
-                            "metadata": metadata or {}},
-                           sort_keys=True, default=str)
+def args_hash(tool_name: str, arguments: dict, metadata: dict | None = None,
+                trace_id: str | None = None,
+                parent_id: str | None = None) -> str:
+    # Trace IDs bind the approval to one cross-agent trace: an approval for
+    # trace T does not authorize the same arguments replayed under another
+    # trace. The keys are omitted (not null) when absent, so pre-trace audit
+    # lines hash exactly as before (backward compatible).
+    canonical_obj: dict = {"tool": tool_name, "arguments": arguments,
+                           "metadata": metadata or {}}
+    if trace_id is not None:
+        canonical_obj["trace_id"] = trace_id
+    if parent_id is not None:
+        canonical_obj["parent_id"] = parent_id
+    canonical = json.dumps(canonical_obj, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -63,7 +73,9 @@ class ApprovalQueue:
         try:
             expected = args_hash(original.get("tool", ""),
                                  original.get("arguments", {}),
-                                 original.get("metadata", {}))
+                                 original.get("metadata", {}),
+                                 original.get("trace_id"),
+                                 original.get("parent_id"))
         except Exception:
             return False
         return entry.get("args_hash") == expected
@@ -111,7 +123,8 @@ class ApprovalQueue:
             "tool": original.get("tool"),
             "arguments": original.get("arguments"),
             "source": "user",
-            "metadata": original.get("metadata", {}),
+            "trace_id": original.get("trace_id"),
+            "parent_id": original.get("parent_id"),
             "decision": Decision.REQUIRE_APPROVAL.value,
             "fail_closed": False,
             "reasons": original.get("reasons", []),
@@ -120,7 +133,9 @@ class ApprovalQueue:
             "approval_of": call_id,
             "args_hash": args_hash(original.get("tool", ""),
                                    original.get("arguments", {}),
-                                   original.get("metadata", {})),
+                                   original.get("metadata", {}),
+                                   original.get("trace_id"),
+                                   original.get("parent_id")),
             "approval": verdict,
         }
         with self.audit._lock:
@@ -133,7 +148,8 @@ class ApprovalQueue:
         fresh = shield.check(call)
         if fresh.decision is Decision.DENY:
             return False, "fresh check denies: execution refused"
-        wanted = args_hash(call.tool_name, call.arguments, call.metadata)
+        wanted = args_hash(call.tool_name, call.arguments, call.metadata,
+                         call.trace_id, call.parent_id)
         entries = self._entries()
         for e in entries:
             if (e.get("approval_of") and e.get("approval") == "approve"
@@ -152,6 +168,8 @@ class ApprovalQueue:
             "call_id": f"use_{secrets.token_hex(6)}",
             "tool": approval.get("tool"),
             "arguments": approval.get("arguments", {}),
+            "trace_id": approval.get("trace_id"),
+            "parent_id": approval.get("parent_id"),
             "source": "user",
             "decision": Decision.REQUIRE_APPROVAL.value,
             "fail_closed": False,
