@@ -29,10 +29,11 @@ import os
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from . import MAX_BODY_BYTES
+from .dashboard import PAGE as _DASHBOARD_PAGE
 from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
 from ..provenance import insecure_dev_mode, resolve
@@ -198,6 +199,12 @@ def ready() -> dict:
     return {"ready": True}
 
 
+@app.get("/", include_in_schema=False)
+def dashboard() -> HTMLResponse:
+    """Live demo dashboard (self-contained HTML, no CDN — works offline)."""
+    return HTMLResponse(_DASHBOARD_PAGE)
+
+
 @app.post("/v1/check", response_model=CheckResponse,
           dependencies=[Depends(require_api_key)])
 def check(req: CheckRequest) -> CheckResponse:
@@ -274,6 +281,53 @@ def reset_demo() -> dict:
 
     n = default_store().ingest()
     return {"reset": True, "corpus_docs": n}
+
+
+class DecideRequest(BaseModel):
+    call_id: str = Field(min_length=1)
+    verdict: str = Field(min_length=1)
+    approver: str = "human"
+
+
+def _approval_queue():
+    from ..approval.queue import ApprovalQueue
+
+    return ApprovalQueue(shield.audit)
+
+
+@app.get("/v1/approvals/pending", dependencies=[Depends(require_api_key)])
+def approvals_pending() -> dict:
+    """Held calls awaiting a human decision (auth-gated, like /v1/audit)."""
+    from ..approval.queue import args_hash
+
+    out = []
+    for e in _approval_queue().pending():
+        out.append({"call_id": e.get("call_id"),
+                    "tool": e.get("tool"),
+                    "arguments": e.get("arguments", {}),
+                    "source": e.get("source"),
+                    "decision": e.get("decision"),
+                    "reasons": e.get("reasons", []),
+                    "args_hash": args_hash(e.get("tool", ""),
+                                           e.get("arguments", {}),
+                                           e.get("metadata", {}))})
+    return {"pending": out}
+
+
+@app.post("/v1/approvals/decide", dependencies=[Depends(require_api_key)])
+def approvals_decide(body: DecideRequest) -> dict:
+    """Record a single-use human decision on a held call (approve/deny)."""
+    if body.verdict not in ("approve", "deny"):
+        raise HTTPException(status_code=400, detail="verdict must be 'approve' or 'deny'")
+    try:
+        entry = _approval_queue().decide(body.call_id, body.verdict,
+                                         approver=body.approver)
+    except ValueError as exc:
+        msg = str(exc)
+        if "no such held call" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=409, detail=msg)
+    return {"approval_of": entry["approval_of"], "approval": entry["approval"]}
 
 
 @app.get("/v1/evidence", dependencies=[Depends(require_api_key)])
