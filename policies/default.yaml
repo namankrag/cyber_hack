@@ -34,6 +34,10 @@ tools:
     sensitivity: low
     allow: true
 
+  read_rag_docs:
+    sensitivity: low
+    allow: true                       # local UNTRUSTED retrieval; use is still policed
+
   # ---- high-sensitivity: real-world side effects ----
   send_email:
     sensitivity: high

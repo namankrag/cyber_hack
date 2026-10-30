@@ -16,7 +16,7 @@ include = ["agentshield*"]
 # Ship the bundled default policy inside the wheel so an installed package
 # finds a policy without relying on the process working directory.
 [tool.setuptools.package-data]
-agentshield = ["data/*.yaml"]
+agentshield = ["data/*.yaml", "data/*.jsonl"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

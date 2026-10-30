@@ -135,6 +135,12 @@ def build_gateway(shield: AgentShield | None = None) -> MCPServer:
     def read_document(doc_id: str) -> str:
         return f"[mock] contents of {doc_id}"
 
+    @server.tool(description="Search the local UNTRUSTED retrieval corpus (low sensitivity).")
+    def read_rag_docs(query: str) -> str:
+        from ..rag.tools import read_rag_docs as _read_rag_docs
+
+        return _read_rag_docs(query)
+
     @server.tool(description="Send an email (HIGH sensitivity, approval-gated).")
     def send_email(to: str, body: str = "") -> str:
         return f"[mock] email sent to {to}"
