@@ -49,6 +49,12 @@ python -m examples.mcp_demo
 # Run the tests (the invariants that must never break)
 python -m pytest -q
 
+# New stack notes (muse branch): requirements now include chromadb +
+# langgraph (pip install takes a few minutes; first RAG run downloads the
+# ~80MB ONNX embedding model once). New demos: python -m examples.rag_demo
+# (RAG + graph, 5 beats). Semgrep lives OUTSIDE .venv (it pins mcp==1.29.0):
+# powershell -ExecutionPolicy Bypass -File scripts/semgrep_gate.ps1
+
 # Start the gateway API
 uvicorn agentshield.gateway.app:app --reload
 #   health:   GET  http://127.0.0.1:8000/health
