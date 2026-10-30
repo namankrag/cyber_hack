@@ -158,6 +158,30 @@ def _is_request_obj(node: ast.AST) -> bool:
             and _is_request(node.value))
 
 
+def _decoy_lines(tree: ast.AST, lines: list[str]) -> set[int]:
+    """Line numbers inside functions carrying a `# DECOY[...]` marker.
+
+    Fixture look-alikes document themselves with a DECOY comment in the
+    handler; the scanner reports them under a distinct ``<rule>-decoy`` id
+    (same CWE/severity) so downstream steps can tell noise from signal while
+    still proving each finding with its own exploit. A shared bare rule id
+    would make snapshot-less resolutions (one job per finding, keyed only by
+    rule) ambiguous once a fixture holds two shapes of the same CWE.
+    """
+    out: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        inner = [n for n in ast.walk(node) if n is not node
+                 and isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)]
+        if inner:
+            continue  # a factory (e.g. create_app): attribute per handler
+        segment = "\n".join(lines[node.lineno - 1:node.end_lineno or node.lineno])
+        if "DECOY[" in segment:
+            out.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return out
+
+
 class _Visitor(ast.NodeVisitor):
     """Per-function pass with a tiny intra-procedural taint set.
 
@@ -172,9 +196,11 @@ class _Visitor(ast.NodeVisitor):
     """
 
     def __init__(self, source_lines: list[str],
-                 class_fields: dict[str, list[str]]) -> None:
+                 class_fields: dict[str, list[str]],
+                 decoy: set[int] | None = None) -> None:
         self.lines = source_lines
         self.class_fields = class_fields
+        self.decoy = decoy or set()
         # (rule_id, line, snippet, param, sink, route, method)
         self.hits: list[tuple[str, int, str, str, str, str, str]] = []
 
@@ -230,6 +256,8 @@ class _Visitor(ast.NodeVisitor):
     # -- per-shape checks ------------------------------------------------
     def _emit(self, rule_id: str, line: int, param: str, sink: str,
               route: str, method: str) -> None:
+        if line in self.decoy:
+            rule_id = f"{rule_id}-decoy"
         self.hits.append(
             (rule_id, line, self._src(line), param, sink, route, method))
 
@@ -427,12 +455,16 @@ def _scan_secrets(tree: ast.AST, lines: list[str],
     hits = []
     for name, _literal, lineno in secrets:
         snippet = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
+        # A revoked-literal look-alike documents itself with a DECOY marker
+        # just above the assignment; it scans as `secret-decoy` (same CWE).
+        window = "\n".join(lines[max(0, lineno - 4):lineno - 1])
+        rule_id = "secret-decoy" if "DECOY[" in window else "secret"
         for func_name, shape in routes.items():
             route, method, req_params, start, end = shape
             body = "\n".join(lines[start - 1:end])
             if name in body and route:
                 param = _by_line(req_params)[0][1] if req_params else ""
-                hits.append(("secret", lineno, snippet, param,
+                hits.append((rule_id, lineno, snippet, param,
                              "hardcoded-credential", route, method or "GET"))
                 break
     return hits
@@ -468,13 +500,18 @@ def _function_routes(tree: ast.AST,
     return out
 
 
+def _base_rule(rule_id: str) -> str:
+    """Strip the ``-decoy`` suffix: decoys share the base rule's CWE tables."""
+    return rule_id[:-len("-decoy")] if rule_id.endswith("-decoy") else rule_id
+
+
 def scan_text(source: str, filename: str = "<memory>") -> list[Finding]:
     """Scan Python source text (used for in-memory patched copies too)."""
     lines = source.splitlines()
     tree = ast.parse(source)
     class_fields = _class_fields(tree)
 
-    v = _Visitor(lines, class_fields)
+    v = _Visitor(lines, class_fields, _decoy_lines(tree, lines))
     v.visit(tree)
     routes = _function_routes(tree, class_fields)
     raw = list(v.hits) + _scan_secrets(tree, lines, routes)
@@ -485,20 +522,21 @@ def scan_text(source: str, filename: str = "<memory>") -> list[Finding]:
         if (rule_id, line) in seen:
             continue
         seen.add((rule_id, line))
-        sev, rationale = _SEVERITY[rule_id]
+        base = _base_rule(rule_id)
+        sev, rationale = _SEVERITY[base]
         findings.append(Finding(
             rule_id=rule_id,
-            cwe=_CWE[rule_id],
-            title=_TITLE[rule_id],
+            cwe=_CWE[base],
+            title=_TITLE[base],
             severity=sev,
             severity_rationale=rationale,
             file=filename,
             line=line,
             snippet=snippet,
             evidence="dynamic string reaches a dangerous sink"
-                     if rule_id not in ("idor", "secret") else
+                     if base not in ("idor", "secret") else
                      ("handler returns object without an ownership comparison"
-                      if rule_id == "idor" else
+                      if base == "idor" else
                       "hardcoded credential compared against request input"),
             route=route,
             method=method,

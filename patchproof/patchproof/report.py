@@ -52,7 +52,13 @@ def to_dict(result: PipelineResult) -> dict:
     return {
         "target": result.target,
         "summary": {"confirmed": result.confirmed, "fixed": result.fixed,
-                    "total_findings": len(result.issues)},
+                    "total_findings": len(result.issues),
+                    # Noise funnel: raw alerts N -> confirmed M -> fixed K,
+                    # plus scanner precision before vs after exploit
+                    # confirmation. Old keys are kept unchanged.
+                    "raw_alerts": result.raw_alerts,
+                    "precision_before": round(result.precision_before, 4),
+                    "precision_after": round(result.precision_after, 4)},
         "issues": issues,
     }
 
@@ -95,6 +101,12 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
         </section>""")
 
     s = d["summary"]
+    funnel = (f"Raw alerts <b>{s['raw_alerts']}</b> &rarr; confirmed "
+              f"<b>{s['confirmed']}</b> &rarr; fixed <b>{s['fixed']}</b> "
+              f"&nbsp;·&nbsp; scanner precision before confirmation "
+              f"<b>{s['precision_before']:.0%}</b>, after "
+              f"<b>{s['precision_after']:.0%}</b> "
+              f"(unconfirmed alerts are dropped, never patched).")
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PatchProof Report</title>
@@ -125,6 +137,7 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
 </style></head><body>
 <h1>🛡️ PatchProof Report</h1>
 <p class="sub">Find the flaw, prove the fix. Target: <code>{html.escape(d['target'])}</code></p>
+<p class="sub">{funnel}</p>
 <div class="kpis">
   <div class="kpi"><b>{s['total_findings']}</b><span>findings</span></div>
   <div class="kpi"><b>{s['confirmed']}</b><span>confirmed by exploit</span></div>

@@ -50,9 +50,18 @@ _SEED_PRODUCTS = [
 ]
 
 
+# DECOY[secret]: a revoked literal — still flagged by name, but presenting it
+# is explicitly rejected (the key was rotated out-of-band).
+LEGACY_API_KEY = "REVOKED-LEGACY-KEY-2024"
+
+
 class LoginForm(BaseModel):
     username: str = ""
     password: str = ""
+
+
+class OrderLookup(BaseModel):
+    order_id: str = ""
 
 
 class ImportPayload(BaseModel):
@@ -134,6 +143,55 @@ def create_app() -> FastAPI:
         if api_key != ADMIN_API_KEY:
             return JSONResponse({"error": "forbidden"}, status_code=403)
         return {"currency": "SYNTH", "revenue": 12345, "orders": 7}
+
+    # -- DECOYS: scanner-noisy shapes that exploits cannot confirm --------
+    # Flagged by the AST scanner (and Semgrep where applicable) but resisting
+    # the matching exploit template: the pipeline reports them NOT CONFIRMED
+    # and drops them (raw alerts N -> confirmed M -> fixed K).
+    @app.post("/orders/lookup")
+    async def order_lookup(payload: OrderLookup):
+        # DECOY[sqli]: int-cast — "%" formatting looks injectable, but only
+        # integers ever reach the query.
+        try:
+            oid = int(payload.order_id)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "order id must be an integer"},
+                                status_code=400)
+        query = "SELECT * FROM users WHERE id = %d" % oid
+        try:
+            row = conn.execute(query).fetchone()
+        except sqlite3.Error as exc:
+            return JSONResponse({"error": f"query error: {exc}"},
+                                status_code=400)
+        if row is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return {"id": row["id"], "username": row["username"]}
+
+    @app.post("/import/legacy")
+    async def import_legacy(payload: ImportPayload):
+        # DECOY[pickle]: loads() is still flagged, but only dict results are
+        # honored — the marker-string proof is rejected as the wrong type.
+        if payload.blob is None:
+            return JSONResponse({"error": "provide 'blob'"},
+                                status_code=400)
+        try:
+            obj = pickle.loads(base64.b64decode(payload.blob))
+        except Exception:
+            return JSONResponse({"error": "invalid blob"},
+                                status_code=400)
+        if not isinstance(obj, dict):
+            return JSONResponse({"error": "legacy envelope restricted to maps"},
+                                status_code=400)
+        return {"imported": len(obj), "keys": sorted(obj)}
+
+    @app.get("/legacy/report")
+    async def legacy_report(api_key: str = ""):
+        # DECOY[secret]: the revoked LEGACY_API_KEY literal is compared here
+        # only to reject it explicitly — presenting it never grants access.
+        if api_key == LEGACY_API_KEY:
+            return JSONResponse({"error": "legacy key revoked"},
+                                status_code=403)
+        return JSONResponse({"error": "forbidden"}, status_code=403)
 
     return app
 

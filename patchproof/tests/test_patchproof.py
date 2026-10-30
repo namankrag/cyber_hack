@@ -16,7 +16,10 @@ ALL = {"sqli", "idor", "cmdi", "pathtrav", "xss"}
 
 
 def _findings():
-    return {f.rule_id: f for f in scan_file(TARGET)}
+    # Only the planted vulns: Item-2 decoys scan as `<rule>-decoy` (same
+    # CWE) and are pinned separately in test_noise_funnel.py.
+    return {f.rule_id: f for f in scan_file(TARGET)
+            if not f.rule_id.endswith("-decoy")}
 
 
 # --- scanner ---------------------------------------------------------------

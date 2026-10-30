@@ -37,8 +37,32 @@ class PipelineResult:
     issues: list[IssueReport] = field(default_factory=list)
 
     @property
+    def raw_alerts(self) -> int:
+        """Every scanner alert, real or noise (the funnel's N)."""
+        return len(self.issues)
+
+    @property
     def confirmed(self) -> int:
         return sum(1 for i in self.issues if i.confirmed)
+
+    @property
+    def precision_before(self) -> float:
+        """Share of raw alerts that exploits confirmed (measured after the
+        fact: confirmed / raw). Low values mean a noisy scanner, not a bad
+        pipeline — unconfirmed alerts are dropped, never patched."""
+        if not self.issues:
+            return 0.0
+        return self.confirmed / len(self.issues)
+
+    @property
+    def precision_after(self) -> float:
+        """Share of acted-on alerts proven real. The pipeline only patches
+        exploit-confirmed findings, so this is 1.0 whenever anything was
+        confirmed (0.0 when there was nothing to act on)."""
+        if not self.confirmed:
+            return 0.0
+        acted_real = sum(1 for i in self.issues if i.confirmed)
+        return acted_real / self.confirmed
 
     @property
     def fixed(self) -> int:

@@ -232,16 +232,26 @@ def regression_suite(client, findings: list[Finding | dict] | None = None
     each CWE's legit counterpart is exercised before and after every patch.
     """
     out: list[CheckResult] = [probe_health(client)]
-    seen: set[str] = set()
+    # One probe per CWE, parameterized by the REAL handler when the fixture
+    # carries both a planted vuln and an Item-2 `-decoy` look-alike of the
+    # same CWE: the decoy needs no regression (it is never patched), and its
+    # route does not serve the legit-behavior contract the probe checks.
+    # A CWE seen only via decoys is skipped outright — there is no real
+    # handler to regress (e.g. re-verifying an already-patched copy whose
+    # real finding is gone but whose decoy remains).
+    by_cwe: dict[str, list] = {}
     for item in findings or []:
         finding = _as_finding(item)
-        if finding.cwe in seen:
+        by_cwe.setdefault(finding.cwe, []).append(finding)
+    for cwe in sorted(by_cwe):
+        cands = by_cwe[cwe]
+        real = [f for f in cands if not f.rule_id.endswith("-decoy")]
+        if not real:
             continue
-        seen.add(finding.cwe)
-        probe = REGRESSION_TEMPLATES.get(finding.cwe)
+        probe = REGRESSION_TEMPLATES.get(cwe)
         if probe is None:
             continue
-        out.extend(probe(client, finding))
+        out.extend(probe(client, real[0]))
     return out
 
 

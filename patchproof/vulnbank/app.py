@@ -17,6 +17,8 @@ import pathlib
 import sqlite3
 import tempfile
 
+from markupsafe import escape
+
 from flask import Flask, jsonify, request
 
 
@@ -148,6 +150,82 @@ def create_app() -> Flask:
         name = request.args.get("name", "world")
         # VULN[xss]: CWE-79 — user input reflected into HTML without escaping.
         return "<h1>Hello %s</h1>" % name
+
+    # -- DECOYS: scanner-noisy shapes that exploits cannot confirm ------
+    # Each handler below is deliberately flagged by the AST scanner (and the
+    # Semgrep rules where applicable) but resists the matching exploit
+    # template, so the pipeline reports it NOT CONFIRMED and drops it. They
+    # exercise the noise funnel: raw alerts N -> confirmed M -> fixed K.
+    def _owns(user, acct):
+        # Ownership factored into a helper (admins pass, owners pass).
+        return acct["owner_id"] == user["id"] or user["role"] == "admin"
+
+    @app.post("/search")
+    def search():
+        data = request.get_json(silent=True) or {}
+        q = data.get("q", "")
+        # DECOY[sqli]: int-cast — the "%" formatting looks injectable, but
+        # only integers ever reach the query.
+        try:
+            uid = int(q)
+        except (TypeError, ValueError):
+            return jsonify(error="user id must be an integer"), 400
+        query = "SELECT * FROM users WHERE id = %d" % uid
+        row = conn.execute(query).fetchone()
+        if row is None:
+            return jsonify(error="not found"), 404
+        return jsonify(id=row["id"], username=row["username"])
+
+    @app.post("/ping-safe")
+    def ping_safe():
+        user = _current_user(conn)
+        if user is None:
+            return jsonify(error="unauthenticated"), 401
+        data = request.get_json(silent=True) or {}
+        host = data.get("host", "")
+        # DECOY[cmdi]: allowlisted fragment — string building into os.popen
+        # looks like CWE-78, but only two literal hostnames reach the shell.
+        if host not in ("127.0.0.1", "localhost"):
+            return jsonify(error="host not allowlisted"), 400
+        output = os.popen("echo pinging " + host).read()
+        return jsonify(host=host, output=output)
+
+    @app.get("/docs")
+    def docs():
+        name = request.args.get("name", "welcome.txt")
+        # DECOY[pathtrav]: confined by resolve() — the open() shape still
+        # looks dynamic, but escapes are rejected before it runs.
+        base = os.path.realpath(docs_dir)
+        safe = os.path.realpath(os.path.join(base, name))
+        if safe != base and not safe.startswith(base + os.sep):
+            return jsonify(error="invalid path"), 400
+        content = open(docs_dir + "/" + name).read()
+        return jsonify(name=name, content=content)
+
+    @app.get("/hello")
+    def hello():
+        name = request.args.get("name", "world")
+        # DECOY[xss]: already-escaped — escaping happens on its own line so
+        # the return still looks like raw reflection to the scanner.
+        safe = escape(name)
+        return "<h1>Hello %s</h1>" % safe
+
+    @app.get("/accounts/<int:account_id>/statement")
+    def statement(account_id: int):
+        user = _current_user(conn)
+        if user is None:
+            return jsonify(error="unauthenticated"), 401
+        acct = conn.execute(
+            "SELECT * FROM accounts WHERE id = ?", (account_id,)
+        ).fetchone()
+        if acct is None:
+            return jsonify(error="not found"), 404
+        # DECOY[idor]: owner_id verified via the _owns helper, an idiom the
+        # scanner comparison heuristic does not recognize.
+        if not _owns(user, acct):
+            return jsonify(error="forbidden"), 403
+        return jsonify(id=acct["id"], balance=acct["balance"],
+                       note=acct["note"])
 
     return app
 

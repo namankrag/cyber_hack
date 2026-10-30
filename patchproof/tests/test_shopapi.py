@@ -20,7 +20,10 @@ SHOP_ALL = {"sqli", "pickle", "secret"}
 
 
 def _shop_findings():
-    return {f.rule_id: f for f in scan_file(SHOP)}
+    # Only the planted vulns: Item-2 decoys scan as `<rule>-decoy` (same
+    # CWE) and are pinned separately in test_noise_funnel.py.
+    return {f.rule_id: f for f in scan_file(SHOP)
+            if not f.rule_id.endswith("-decoy")}
 
 
 # --- scanner on the second fixture ----------------------------------------

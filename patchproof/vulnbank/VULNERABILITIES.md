@@ -41,3 +41,20 @@ normalize and confine the resolved path to the docs directory.
 The name query parameter is interpolated into an HTML response without
 escaping. Exploit: submit a script tag and observe it returned as active markup.
 Fix: HTML-escape the value before rendering.
+
+## Decoys — scanner noise the exploits cannot confirm
+
+Realistic look-alikes the AST scanner (and Semgrep where applicable) still
+flag, but every exploit template fails against, so the pipeline marks them
+NOT CONFIRMED and drops them without a patch. Each scans as `<rule>-decoy`
+(same CWE, distinct rule id) so per-finding proofs stay unambiguous.
+They pin the noise funnel:
+raw alerts 10 → confirmed 5 → fixed 5 (precision 50% → 100%).
+
+| ID | CWE | Shape | Why the scanner flags it | Why the exploit fails |
+|----|-----|-------|--------------------------|-----------------------|
+| `sqli-decoy` | CWE-89 | `POST /search` | `"..." % uid` reaches `conn.execute` | `q` is `int()`-cast; `admin' --` → 400 |
+| `cmdi-decoy` | CWE-78 | `POST /ping-safe` | `"..." + host` reaches `os.popen` | allowlist rejects `; echo …` → 400 |
+| `pathtrav-decoy` | CWE-22 | `GET /docs` | `open(docs_dir + "/" + name)` is dynamic | `realpath` confinement rejects `../` → 400 |
+| `xss-decoy` | CWE-79 | `GET /hello` | `return "<h1>…%s…</h1>" % safe`, no `escape` on that line | value escaped on its own line; probe returns inert |
+| `idor-decoy` | CWE-639 | `GET /accounts/<id>/statement` | object route + `owner_id` with no inline comparison | `_owns()` helper enforces ownership; Alice → 403 on Bob's account |
