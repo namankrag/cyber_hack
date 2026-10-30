@@ -43,6 +43,9 @@ pip install -r requirements.txt
 # Run the enforcement demo — 5 scenarios, all self-contained
 python -m examples.demo
 
+# Run the MCP gateway demo — same enforcement, over the real MCP protocol
+python -m examples.mcp_demo
+
 # Run the tests (the invariants that must never break)
 python -m pytest -q
 
@@ -100,8 +103,25 @@ curl -s http://127.0.0.1:8000/v1/check -H 'content-type: application/json' -d '{
 | Detection | `agentshield/detection/` | pluggable injection detectors |
 | Policy | `agentshield/policy/` | YAML schema, loader, decision engine |
 | Audit | `agentshield/audit/` | append-only JSONL trail |
-| Gateway | `agentshield/gateway/app.py` | FastAPI enforcement endpoint |
-| Demo | `examples/` | mock agent + 5 scenarios |
+| HTTP gateway | `agentshield/gateway/app.py` | FastAPI enforcement endpoint |
+| **MCP gateway** | `agentshield/gateway/mcp_gateway.py` | **protocol-layer enforcement via the official MCP SDK** |
+| Demo | `examples/` | mock agent, HTTP + MCP demos |
+
+### MCP gateway — enforcement at the protocol layer
+
+The HTTP endpoint trusts the agent to *call* it. The MCP gateway doesn't: it
+integrates the official [Model Context Protocol SDK](https://github.com/modelcontextprotocol/python-sdk)
+and installs AgentShield as **server middleware**, so every `tools/call` an
+agent makes over MCP is adjudicated *before the tool runs* — at the transport
+layer, below the model, where an injected instruction can't route around it.
+
+Same decision brain (`PolicyEngine`), three front doors: in-process, HTTP, and
+MCP. `python -m examples.mcp_demo` drives it with a real MCP client and shows
+an injection being blocked mid-protocol.
+
+Provenance (user vs. untrusted document) is supplied by the harness around the
+agent via an `_agentshield` tag on the call — it's established outside the
+model on purpose. Untagged high-sensitivity calls fail closed.
 
 ---
 
@@ -136,7 +156,8 @@ silently weaken enforcement.
 ## Status
 
 Working: domain model, heuristic detection, policy engine, fail-closed logic,
-audit log, FastAPI gateway, 5-scenario demo, test suite (7 passing).
+audit log, FastAPI gateway, **MCP gateway (protocol-layer enforcement via the
+official MCP SDK)**, HTTP + MCP demos, test suite (11 passing).
 
-Next: LLM detector wired to a live key, MCP proxy transport, approval-queue
-dashboard.
+Next: LLM detector wired to a live key (Gemini/Groq), ProtectAI `llm-guard`
+model detector as a drop-in, approval-queue dashboard.
