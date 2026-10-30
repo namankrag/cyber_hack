@@ -31,6 +31,13 @@ def test_scanner_no_false_positive_on_clean_code(tmp_path):
     assert scan_file(clean) == []
 
 
+def test_pipeline_refuses_to_execute_out_of_scope_files(tmp_path):
+    candidate = tmp_path / "outside_scope.py"
+    candidate.write_text("raise RuntimeError('must not execute')\n")
+    with pytest.raises(ValueError, match="bundled VulnBank fixture"):
+        run_pipeline(candidate, engine="ast")
+
+
 # --- exploits + regression on the vulnerable app --------------------------
 def test_all_exploits_succeed_on_vulnerable_app():
     src = Path(TARGET).read_text()

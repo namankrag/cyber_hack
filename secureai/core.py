@@ -10,6 +10,9 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+
+from . import REPO_ROOT
 
 
 class Layer(str, Enum):
@@ -81,13 +84,18 @@ def from_issue(issue) -> SecurityEvent:
         status = Status.FIXED
     else:
         status = Status.REJECTED
+    source_path = Path(f.file)
+    try:
+        location = source_path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        location = str(source_path)
     return SecurityEvent(
         layer=Layer.CODE, status=status, severity=f.severity.value,
         title=f"{f.cwe}: {f.title}",
         detail=(issue.verification.patch_rationale
                 if issue.verification else "no patch"),
         evidence=issue.exploit_evidence,
-        ref=f"{f.file}:{f.line}",
+        ref=f"{location}:{f.line}",
     )
 
 

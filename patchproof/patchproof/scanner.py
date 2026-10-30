@@ -193,7 +193,7 @@ def scan(path: str | Path, engine: str = "auto") -> list[Finding]:
 def scan_file(path: str | Path) -> list[Finding]:
     """Built-in AST scanner only."""
     path = Path(path)
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     lines = source.splitlines()
     tree = ast.parse(source)
 

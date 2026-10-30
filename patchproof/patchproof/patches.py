@@ -46,12 +46,11 @@ PATCH_SQLI = Patch(
         try:
             row = conn.execute(query).fetchone()''',
         '''        # FIX[sqli]: parameterized query — input is bound, not interpolated.
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ? AND password = ?",
-            (username, password),
-        ).fetchone()
         try:
-            pass''',
+            row = conn.execute(
+                "SELECT * FROM users WHERE username = ? AND password = ?",
+                (username, password),
+            ).fetchone()''',
     )],
 )
 

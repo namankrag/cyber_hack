@@ -32,7 +32,15 @@ TOOL_SOURCES: dict[str, str] = {
 
 def _resolve(path: str) -> Path:
     p = Path(path)
-    return p if p.is_absolute() else REPO_ROOT / p
+    if p.is_absolute():
+        return p
+    resolved = REPO_ROOT / p
+    if resolved.exists():
+        return resolved
+    # Wheels install the practice app as the top-level ``vulnbank`` package.
+    if path.startswith("patchproof/vulnbank/"):
+        return REPO_ROOT / path.removeprefix("patchproof/")
+    return resolved
 
 
 def harden_target(target: str, engine: str = "auto", use_ai: bool = False):
@@ -80,4 +88,33 @@ def on_runtime_block(tool_name: str, engine: str = "ast") -> list[SecurityEvent]
     _res, events = harden_target(src, engine=engine)
     for e in events:
         e.links.append(tool_name)   # trace: this code finding came from a runtime block
+    return events
+
+
+def scan_on_runtime_block(tool_name: str, engine: str = "ast",
+                          source_override: str | Path | None = None) -> list[SecurityEvent]:
+    """Scan the mapped implementation after a block and link findings to it.
+
+    ``source_override`` is used by the closed-loop runner to scan its isolated
+    deployed copy. It cannot change which tool is governed; the tool must
+    still exist in the explicit registry above.
+    """
+    from patchproof.scanner import scan
+
+    registered = TOOL_SOURCES.get(tool_name)
+    if not registered:
+        return []
+    target = Path(source_override) if source_override is not None else _resolve(registered)
+    events = []
+    for finding in scan(target, engine=engine):
+        events.append(SecurityEvent(
+            layer=Layer.CODE,
+            status=Status.UNCONFIRMED,
+            title=f"{finding.cwe}: {finding.title}",
+            detail="Static finding opened by the runtime-block bridge; exploit proof follows.",
+            severity=finding.severity.value,
+            evidence=finding.evidence,
+            ref=f"patchproof/vulnbank/app.py:{finding.line}",
+            links=[tool_name],
+        ))
     return events

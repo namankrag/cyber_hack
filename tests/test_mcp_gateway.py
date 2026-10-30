@@ -4,6 +4,10 @@ These drive a real MCP client<->server session in memory and assert that
 AgentShield blocks/holds/allows at the protocol layer. Uses anyio.run so no
 extra pytest-async plugin is needed.
 """
+import pytest
+
+pytest.importorskip("mcp", reason="install requirements.txt to run MCP gateway tests")
+
 import anyio
 from mcp.client.session import ClientSession
 from mcp.shared.memory import create_client_server_memory_streams

@@ -1,0 +1,123 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SecureAI Platform</title>
+<style>
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#1e3a8a; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); max-width:1000px; margin:0 auto; padding:24px 16px; }
+  h1 { margin:0 0 2px; } .sub { color:var(--muted); margin:0 0 16px; }
+  .kpis { display:flex; gap:12px; margin-bottom:14px; }
+  .kpi { flex:1; background:#f1f5f9; border:1px solid var(--line); border-radius:10px; padding:12px; text-align:center; }
+  .kpi b { display:block; font-size:26px; color:var(--accent); }
+  .kpi span { color:var(--muted); font-size:12px; }
+  .note { background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; padding:10px 12px; border-radius:10px; font-size:13px; }
+  .cols { display:flex; gap:16px; align-items:flex-start; }
+  .col { flex:1; min-width:0; }
+  .col h2 { font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); border-bottom:2px solid var(--accent); padding-bottom:6px; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .title { font-weight:600; font-size:14px; }
+  .badge { font:600 11px/1 sans-serif; padding:5px 9px; border-radius:999px; white-space:nowrap; }
+  .sev { color:var(--muted); font-size:12px; margin:4px 0; }
+  .detail { font-size:13px; margin:4px 0; }
+  .evidence { font-size:12px; color:var(--muted); font-family:ui-monospace,monospace; }
+  .link { margin-top:6px; font-size:12px; color:var(--accent); }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:12px; }
+  footer { color:var(--muted); font-size:12px; margin-top:20px; border-top:1px solid var(--line); padding-top:10px; }
+</style></head><body>
+<h1>🛡️ SecureAI Platform</h1>
+<p class="sub">Guard the agent while it runs — and harden the code it runs on. One platform, two layers.</p>
+<div class="kpis">
+  <div class="kpi"><b>1</b><span>runtime attacks blocked</span></div>
+  <div class="kpi"><b>5</b><span>code vulns fixed &amp; verified</span></div>
+  <div class="kpi"><b>1</b><span>auto-triggered code scans</span></div>
+</div>
+<p class='note'>A runtime block on <b>read_customer_db</b> automatically triggered a code scan of that tool's implementation — the Code column below is the root-cause remediation.</p>
+<div class="cols">
+  <div class="col"><h2>Runtime · AgentShield</h2>
+    <div class="card">
+      <div class="row">
+        <span class="title">tool call: search_web</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">ALLOWED</span>
+      </div>
+      <div class="sev">INFO &nbsp;·&nbsp; <code>search_web</code></div>
+      <div class="detail">No rule objected; call is within policy.</div>
+      <div class="evidence">No rule objected; call is within policy.</div>
+
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">tool call: read_customer_db</span>
+        <span class="badge" style="color:#b91c1c;background:#fee2e2">BLOCKED</span>
+      </div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>read_customer_db</code></div>
+      <div class="detail">Source &#x27;untrusted&#x27; is not in this tool&#x27;s allow-list [&#x27;user&#x27;, &#x27;system&#x27;].</div>
+      <div class="evidence">heuristic flagged injection (score 1.0): override: &#x27;ignore previous instructions&#x27;; secrecy / keep-it-hidden instruction. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source &#x27;u</div>
+
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">tool call: send_email</span>
+        <span class="badge" style="color:#b45309;background:#fef3c7">HELD</span>
+      </div>
+      <div class="sev">MEDIUM &nbsp;·&nbsp; <code>send_email</code></div>
+      <div class="detail">&#x27;send_email&#x27; is a high-impact action that always requires human approval.</div>
+      <div class="evidence">&#x27;send_email&#x27; is a high-impact action that always requires human approval.</div>
+
+    </div></div>
+  <div class="col"><h2>Code · PatchProof</h2>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-89: SQL injection: user input in SQL string</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
+      </div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:104</code></div>
+      <div class="detail">Use a parameterized query so user input is bound as data, never parsed as SQL. Closes CWE-89 without changing behaviour for legitimate credentials.</div>
+      <div class="evidence">POST /login {&#x27;username&#x27;: &quot;admin&#x27; --&quot;, &#x27;password&#x27;: &#x27;wrong-on-purpose&#x27;} -&gt; 200 {&#x27;role&#x27;: &#x27;admin&#x27;, &#x27;token&#x27;: &#x27;3&#x27;}. Authenticated as admin without the password.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-78: OS command injection: user input in shell command</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
+      </div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:136</code></div>
+      <div class="detail">Reject non-hostname input and call ping via an argument list (no shell), so metacharacters cannot start a new command. Closes CWE-78; legitimate hostnames still work.</div>
+      <div class="evidence">POST /ping {&#x27;host&#x27;: &#x27;127.0.0.1; echo PWNED_BY_PATCHPROOF&#x27;} -&gt; injected command executed (output contained the marker).</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-639: Broken access control: object returned without ownership check</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
+      </div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:112</code></div>
+      <div class="detail">Enforce that the account&#x27;s owner_id matches the authenticated caller (admins exempt). Closes CWE-639; owners still read their own accounts unchanged.</div>
+      <div class="evidence">GET /accounts/1002 as user 1 -&gt; 200 {&#x27;balance&#x27;: 15750, &#x27;id&#x27;: 1002, &#x27;note&#x27;: &#x27;Bob savings&#x27;, &#x27;owner_id&#x27;: 2}. Read another users account.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-22: Path traversal: user input in a filesystem path</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
+      </div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:143</code></div>
+      <div class="detail">Resolve the requested path and confirm it stays inside the docs directory before opening it. Closes CWE-22; legitimate files in docs/ still load.</div>
+      <div class="evidence">GET /files?name=../vault_secret.txt -&gt; 200. Leaked a file outside the docs directory.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-79: Reflected XSS: user input returned in HTML unescaped</span>
+        <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
+      </div>
+      <div class="sev">MEDIUM &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:150</code></div>
+      <div class="detail">HTML-escape user input before reflecting it. Closes CWE-79; the greeting still shows the name, now inert.</div>
+      <div class="evidence">GET /greet?name=&lt;script&gt;alert(document.cookie)&lt;/script&gt; -&gt; payload reflected unescaped (executes in a browser).</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div></div>
+</div>
+<footer>Runtime decisions enforce the tool boundary (allow / hold / block); code results are
+exploit-confirmed and gate-verified fixes. The bridge links a runtime block to the code scan it triggered.</footer>
+</body></html>

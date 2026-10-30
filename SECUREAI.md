@@ -42,6 +42,7 @@ maps an AgentShield `EnforcementResult` and a PatchProof `IssueReport` onto one
 ```bash
 pip install -r requirements.txt          # AgentShield deps
 pip install -r patchproof/requirements.txt
+pip install -e .                         # install the unified secureai command
 
 # The flagship: run both layers + the bridge, write the unified dashboard
 python -m secureai platform --report secureai_dashboard.html
@@ -50,9 +51,35 @@ python -m secureai platform --report secureai_dashboard.html
 python -m secureai runtime                # AgentShield scenarios
 python -m secureai harden                 # PatchProof over the governed tools
 
-# Tests (AgentShield + SecureAI platform)
+# Closed remediation loop: block → bridge scan → patch → verify → re-attack
+secureai loop --max-iters 8 --report loop_report.json
+
+# One evaluation pass or a bounded decision-threshold search
+secureai eval --once --out-dir reports
+secureai eval --tune --out-dir reports
+
+# Re-evaluate when the bundled practice tool changes
+secureai watch --interval 1 --out-dir reports
+
+# Tests (run both suites from their project roots)
+python -m pytest -q
+cd patchproof
 python -m pytest -q
 ```
+
+`secureai eval` writes `scorecard.json` and `scorecard.html`; it exits nonzero
+when any acceptance gate fails. The report contains per-scenario decisions,
+independent code rechecks, regression status, and the confirmed-vulnerability
+count at each loop iteration. The synthetic dataset covers direct and indirect
+injection, a disabled tool, benign calls, and a legitimate high-impact action
+that must be held for approval.
+
+The remediation loop applies patches only to a temporary VulnBank copy. Each
+exploit and regression job runs in a child process with a 10-second deadline.
+The runtime policy is re-attacked before and after each accepted patch, and the
+bridge links those runtime blocks to AST findings in the same copy. An
+unverified patch stops with `approval_required`; the source fixture is never
+auto-modified.
 
 ## What a run shows
 
@@ -82,4 +109,5 @@ standard monorepo answer of one venv per subproject.
 agentshield/        PS-1 — runtime enforcement (root)
 patchproof/         PS-2 — find/prove/patch/verify
 secureai/           integration: core.py · bridge.py · platform.py · dashboard.py · cli.py
+                    loop.py · evaluation.py · grader.py
 ```

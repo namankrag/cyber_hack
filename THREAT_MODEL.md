@@ -72,6 +72,18 @@ radius of a successful prompt injection**, not to perfectly detect injections.
   arguments to a third-party provider; treat it as a deliberate data-sharing
   feature.
 
+## SecureAI evaluation and remediation boundary
+
+- The evaluation dataset is synthetic. The closed loop accepts only the
+  bundled VulnBank fixture registered by SecureAI; patches are applied to a
+  temporary copy and never written back to the source fixture.
+- Exploit and regression jobs run in a child process with a 10-second timeout.
+  A timeout or worker error fails closed and requires human review. This is a
+  bounded fixture runner, not an operating-system sandbox for arbitrary code;
+  the runner must remain restricted to the bundled practice app.
+- The `secureai watch` command monitors that fixture and re-runs the evaluation
+  when its contents change. It does not watch arbitrary repositories.
+
 ## Operator checklist
 
 - [ ] Set `AGENTSHIELD_HARNESS_SECRET` (else runs in insecure dev mode — flagged in `/health`).

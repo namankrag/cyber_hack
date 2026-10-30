@@ -8,7 +8,7 @@ from .ai_patch import AIPatcher
 from .checks import EXPLOITS
 from .models import Finding, VerificationResult
 from .patches import PATCHES
-from .sandbox import client_from_source
+from .sandbox import assert_bundled_fixture_target, run_fixture_jobs
 from .scanner import scan
 from .verifier import verify_patch, verify_source
 
@@ -52,7 +52,8 @@ class PipelineResult:
 def run_pipeline(target_file: str | Path, engine: str = "auto",
                  use_ai: bool = False, ai_provider: str | None = None) -> PipelineResult:
     target_file = Path(target_file)
-    original = target_file.read_text()
+    assert_bundled_fixture_target(target_file)
+    original = target_file.read_text(encoding="utf-8")
 
     ai = AIPatcher(provider=ai_provider) if use_ai else None
     ai_on = bool(ai and ai.available())
@@ -67,14 +68,32 @@ def run_pipeline(target_file: str | Path, engine: str = "auto",
     result = PipelineResult(target=str(target_file), engine=resolved_engine,
                             ai_enabled=ai_on)
 
-    for finding in findings:
+    jobs = [
+        {"key": f"finding-{index}", "source": original,
+         "rule_id": finding.rule_id, "regressions": False}
+        for index, finding in enumerate(findings)
+        if finding.rule_id in EXPLOITS
+    ]
+    try:
+        proofs = run_fixture_jobs(jobs)
+    except (RuntimeError, TimeoutError) as exc:
+        # Fail closed: a timed-out or failed sandbox proof cannot confirm a
+        # finding or authorize a patch.
+        proofs = {}
+        sandbox_error = f"bounded fixture proof failed: {type(exc).__name__}: {exc}"
+    else:
+        sandbox_error = None
+
+    for index, finding in enumerate(findings):
         # 2) PROVE the finding is real with an executable exploit.
         exploit = EXPLOITS.get(finding.rule_id)
-        ev = exploit(client_from_source(original)) if exploit else None
+        proof = proofs.get(f"finding-{index}")
+        ev = proof["exploit"] if proof else None
         confirmed = bool(ev and ev.exploited)
         issue = IssueReport(
             finding=finding, confirmed=confirmed,
-            exploit_evidence=ev.evidence if ev else "no exploit available",
+            exploit_evidence=(ev.evidence if ev else
+                              sandbox_error or "no exploit available"),
         )
 
         if confirmed:

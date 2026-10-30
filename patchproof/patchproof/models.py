@@ -52,6 +52,7 @@ class VerificationResult:
     diff: str = ""
     patch_rationale: str = ""
     error: str | None = None
+    verification_time_ms: float = 0.0
 
     @property
     def regression_after_passed(self) -> bool:

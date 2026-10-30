@@ -1,7 +1,7 @@
 """VulnBank — a deliberately vulnerable practice app (synthetic data only).
 
 This is the IN-SCOPE target for PatchProof. It is intentionally insecure:
-three planted, CWE-tagged weaknesses live in the request handlers below,
+five planted, CWE-tagged weaknesses live in the request handlers below,
 each marked with a `# VULN:` comment. See vulnbank/VULNERABILITIES.md.
 
 The module is deliberately self-contained (stdlib + Flask only, in-memory DB

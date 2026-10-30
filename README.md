@@ -1,5 +1,10 @@
 # 🛡️ AgentShield
 
+> **Master project:** SecureAI combines this runtime layer with PatchProof's
+> code-security pipeline, closed remediation loop, and evaluation scorecard.
+> Start with [SECUREAI.md](SECUREAI.md) for the integrated quickstart and
+> [MASTER_BUILD_PROMPT.md](MASTER_BUILD_PROMPT.md) for the full build spec.
+
 **Secure the agent, not just the prompt.**
 
 A policy enforcement point that sits between an AI agent and its tools. Every
@@ -178,10 +183,10 @@ protect against. Prompt-injection detection is defense in depth, not a guarantee
 
 ## Status
 
-Working: domain model, heuristic detection, policy engine, fail-closed logic,
-audit log (redacted), **MCP gateway (protocol-layer enforcement)**, `guard`
-PEP, trusted-provenance resolution, auth-gated HTTP gateway, HTTP + MCP demos,
-test suite (**26 passing**, incl. security-boundary tests).
+Working: the AgentShield policy enforcement point, PatchProof's five verified
+fixture fixes, shared SecureAI bridge/dashboard, closed remediation loop, and
+independently graded evaluation scorecard. See [SECUREAI.md](SECUREAI.md) for
+the integrated run commands and [reports/](reports/) for generated outputs.
 
-Next: LLM detector wired to a live key (Gemini/Groq); session/nonce-bound
-provenance tokens; upstream MCP proxy passthrough; approval-queue dashboard.
+The optional live LLM detector, session/nonce-bound provenance, upstream MCP
+proxy passthrough, and approval-queue dashboard remain future extensions.

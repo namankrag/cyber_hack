@@ -10,13 +10,20 @@ license = { text = "MIT" }
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+[project.scripts]
+secureai = "secureai.cli:main"
+
 [tool.setuptools.packages.find]
-include = ["agentshield*"]
+where = [".", "patchproof"]
+include = ["agentshield*", "secureai*", "patchproof*", "vulnbank*"]
+namespaces = false
 
 # Ship the bundled default policy inside the wheel so an installed package
 # finds a policy without relying on the process working directory.
 [tool.setuptools.package-data]
 agentshield = ["data/*.yaml"]
+patchproof = ["semgrep_rules/*.yaml"]
+vulnbank = ["*.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

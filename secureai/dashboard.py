@@ -86,4 +86,6 @@ def write_html(result: PlatformResult, path: str | Path) -> None:
 <footer>Runtime decisions enforce the tool boundary (allow / hold / block); code results are
 exploit-confirmed and gate-verified fixes. The bridge links a runtime block to the code scan it triggered.</footer>
 </body></html>"""
-    Path(path).write_text(doc)
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(doc, encoding="utf-8")
