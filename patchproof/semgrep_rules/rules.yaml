@@ -1,0 +1,45 @@
+rules:
+  - id: patchproof-sqli
+    languages: [python]
+    severity: ERROR
+    message: "SQL built from user input (CWE-89)"
+    metadata: {cwe: "CWE-89", rule_id: "sqli"}
+    patterns:
+      - pattern-either:
+          - pattern: $CUR.execute("..." % ...)
+          - pattern: $CUR.execute("..." + ...)
+          - pattern: $CUR.execute(f"...")
+          - patterns:
+              - pattern: $CUR.execute($Q)
+              - pattern-inside: |
+                  $Q = "..." % ...
+                  ...
+          - patterns:
+              - pattern: $CUR.execute($Q)
+              - pattern-inside: |
+                  $Q = ("..." % ...)
+                  ...
+
+  - id: patchproof-cmdi
+    languages: [python]
+    severity: ERROR
+    message: "User input flows into a shell command (CWE-78)"
+    metadata: {cwe: "CWE-78", rule_id: "cmdi"}
+    patterns:
+      - pattern-either:
+          - pattern: os.popen("..." + ...)
+          - pattern: os.system("..." + ...)
+          - pattern: os.popen(f"...")
+          - pattern: os.system(f"...")
+
+  - id: patchproof-pathtraversal
+    languages: [python]
+    severity: ERROR
+    message: "User input used to build a filesystem path (CWE-22)"
+    metadata: {cwe: "CWE-22", rule_id: "pathtrav"}
+    patterns:
+      - pattern-either:
+          - pattern: open("..." + ...)
+          - pattern: open(f"...")
+          - pattern: open($A + $B)
+          - pattern: open($A + $B + $C)

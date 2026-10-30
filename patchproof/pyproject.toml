@@ -1,0 +1,18 @@
+[project]
+name = "patchproof"
+version = "0.1.0"
+description = "Find the flaw, prove the fix — a verification-first SAST + patch pipeline."
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["patchproof*", "vulnbank*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

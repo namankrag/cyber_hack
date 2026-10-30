@@ -1,0 +1,109 @@
+"""Orchestrates find -> prove -> patch -> prove-fixed for a target file."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .ai_patch import AIPatcher
+from .checks import EXPLOITS
+from .models import Finding, VerificationResult
+from .patches import PATCHES
+from .sandbox import client_from_source
+from .scanner import scan
+from .verifier import verify_patch, verify_source
+
+
+@dataclass
+class IssueReport:
+    finding: Finding
+    confirmed: bool                 # exploit proved the finding is real
+    exploit_evidence: str
+    verification: VerificationResult | None = None
+    patch_source: str = "none"      # "curated" | "ai" | "ai-rejected→curated"
+
+    @property
+    def status(self) -> str:
+        if not self.confirmed:
+            return "NOT CONFIRMED (likely false positive)"
+        return self.verification.verdict if self.verification else "UNPATCHED"
+
+
+@dataclass
+class PipelineResult:
+    target: str
+    engine: str = "ast"
+    ai_enabled: bool = False
+    issues: list[IssueReport] = field(default_factory=list)
+
+    @property
+    def confirmed(self) -> int:
+        return sum(1 for i in self.issues if i.confirmed)
+
+    @property
+    def fixed(self) -> int:
+        return sum(1 for i in self.issues
+                   if i.verification and i.verification.accepted)
+
+    @property
+    def ai_fixes(self) -> int:
+        return sum(1 for i in self.issues if i.patch_source == "ai")
+
+
+def run_pipeline(target_file: str | Path, engine: str = "auto",
+                 use_ai: bool = False, ai_provider: str | None = None) -> PipelineResult:
+    target_file = Path(target_file)
+    original = target_file.read_text()
+
+    ai = AIPatcher(provider=ai_provider) if use_ai else None
+    ai_on = bool(ai and ai.available())
+
+    # 1) FIND
+    findings = scan(target_file, engine=engine)
+    resolved_engine = engine
+    if engine == "auto":
+        from . import semgrep_adapter
+        resolved_engine = "both" if semgrep_adapter.available() else "ast"
+
+    result = PipelineResult(target=str(target_file), engine=resolved_engine,
+                            ai_enabled=ai_on)
+
+    for finding in findings:
+        # 2) PROVE the finding is real with an executable exploit.
+        exploit = EXPLOITS.get(finding.rule_id)
+        ev = exploit(client_from_source(original)) if exploit else None
+        confirmed = bool(ev and ev.exploited)
+        issue = IssueReport(
+            finding=finding, confirmed=confirmed,
+            exploit_evidence=ev.evidence if ev else "no exploit available",
+        )
+
+        if confirmed:
+            issue.verification, issue.patch_source = _best_patch(
+                target_file, finding, ai if ai_on else None)
+
+        result.issues.append(issue)
+
+    return result
+
+
+def _best_patch(target_file, finding, ai):
+    """Try an AI patch first (if enabled); accept it only if it passes the gate.
+    Otherwise (or on rejection) fall back to the curated patch.
+    """
+    rule_id = finding.rule_id
+
+    if ai is not None:
+        candidate = ai.propose(target_file, rule_id, finding.line)
+        if candidate is not None:
+            v = verify_source(target_file, candidate, rule_id,
+                              rationale="AI-generated patch, verified by the gate")
+            if v.accepted:
+                return v, "ai"
+            # AI produced something, but it failed the gate -> fall back.
+            if rule_id in PATCHES:
+                return verify_patch(target_file, PATCHES[rule_id]), "ai-rejected→curated"
+            return v, "ai (rejected)"
+
+    if rule_id in PATCHES:
+        return verify_patch(target_file, PATCHES[rule_id]), "curated"
+    return None, "none"
