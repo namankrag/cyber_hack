@@ -6,6 +6,7 @@ than silently degrading enforcement.
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -55,6 +56,7 @@ class Config:
 
     # Security / operational
     api_key: str | None = None            # if set, required to call the HTTP gateway
+    admin_key: str | None = None          # if set, required for /v1/admin/* instead of api_key
     redact_keys: list[str] = field(default_factory=lambda: [
         "password", "passwd", "secret", "token", "api_key", "apikey",
         "api_secret", "password_hash", "api-key", "api-secret",
@@ -100,8 +102,16 @@ class Config:
                 os.getenv("AGENTSHIELD_POLICY_PATH", "policies/default.yaml")),
             audit_path=os.getenv("AGENTSHIELD_AUDIT_PATH", "audit.log.jsonl"),
             api_key=os.getenv("AGENTSHIELD_API_KEY") or None,
+            admin_key=os.getenv("AGENTSHIELD_ADMIN_KEY") or None,
             llm_timeout_s=float(os.getenv("AGENTSHIELD_LLM_TIMEOUT_S", "8.0")),
         )
         if redact_env is not None:
             kwargs["redact_keys"] = [k.strip().lower() for k in redact_env.split(",") if k.strip()]
+        if kwargs["api_key"] is None:
+            # Auth is opt-in by design (keyless demo default): make the open
+            # gateway impossible to miss in logs instead of silent.
+            logging.getLogger(__name__).warning(
+                "AGENTSHIELD_API_KEY is not set: the HTTP gateway runs OPEN "
+                "(dev default). Set it before exposing the gateway beyond "
+                "localhost; see THREAT_MODEL.md.")
         return cls(**kwargs)

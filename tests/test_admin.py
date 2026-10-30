@@ -81,4 +81,39 @@ def test_reset_reingests_corpus(tmp_path, monkeypatch):
     c = _client(tmp_path, monkeypatch)
     key = {"X-API-Key": "t"}
     r = c.post("/v1/admin/reset", headers=key)
-    assert r.status_code == 200 and r.json()["corpus_docs"] == 12
+    assert r.status_code == 200 and r.json()["corpus_docs"] == 14
+
+
+def _admin_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_API_KEY", "t")
+    monkeypatch.setenv("AGENTSHIELD_ADMIN_KEY", "adm")
+    monkeypatch.setenv("AGENTSHIELD_AUDIT_PATH", os.path.join(str(tmp_path), "audit.jsonl"))
+    import agentshield.gateway.app as appmod
+    importlib.reload(appmod)
+    return TestClient(appmod.app)
+
+
+def test_admin_key_split(tmp_path, monkeypatch):
+    # With a dedicated admin key, the read key can no longer flip the
+    # global enforcement switch — the leaked-read-key scenario is closed.
+    c = _admin_client(tmp_path, monkeypatch)
+    user, adm = {"X-API-Key": "t"}, {"X-API-Key": "adm"}
+    assert c.post("/v1/admin/enforce", json={"enabled": False}, headers=user).status_code == 401
+    assert c.post("/v1/check", json=POISON, headers=user).status_code == 200
+    r = c.post("/v1/admin/enforce", json={"enabled": False}, headers=adm)
+    assert r.status_code == 200 and r.json() == {"enforced": False}
+    assert c.post("/v1/check", json=POISON, headers=user).json()["decision"] == "allow"
+    r = c.post("/v1/admin/enforce", json={"enabled": True}, headers=adm)
+    assert r.json() == {"enforced": True}
+
+
+def test_health_has_no_sensitive_fields_and_evidence_does(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    key = {"X-API-Key": "t"}
+    h = c.get("/health").json()
+    assert h["status"] == "ok"
+    assert "policy" not in h and "tools_governed" not in h
+    assert "insecure_provenance_dev_mode" not in h
+    ev = c.get("/v1/evidence", headers=key).json()
+    assert ev["enforced"] is True
+    assert "provenance_dev_mode" in ev

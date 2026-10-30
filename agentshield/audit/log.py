@@ -39,7 +39,23 @@ class AuditLog:
     # Substring fragments that always mark a key as sensitive, even inside
     # compound names (api_secret, password_hash, access_token, ...).
     _SENSITIVE_FRAGMENTS = ("secret", "password", "passwd", "credential",
-                            "token", "apikey", "privatekey")
+                            "token", "apikey", "privatekey",
+                            "ssn", "cvv", "card", "auth")
+    # "card" also matches "discard", "auth" matches "author": accepted —
+    # for an audit trail, over-redacting an odd key errs safe, while
+    # under-redacting user_auth/card_number leaks. ("pin" is deliberately
+    # absent: it matches "mapping"/"opinion" and would nuke benign text.)
+
+    # High-confidence secret shapes in free text: provider-issued tokens have
+    # fixed prefixes, so masking them has ~zero false-positive risk even
+    # under a benign key.
+    _TOKEN_SHAPES = (
+        re.compile(r"sk-[A-Za-z0-9]{16,}"),
+        re.compile(r"ghp_[A-Za-z0-9]{20,}"),
+        re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),
+        re.compile(r"AKIA[0-9A-Z]{16}"),
+        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    )
 
     def _sensitive(self, key: str) -> bool:
         k = key.lower()
@@ -58,16 +74,19 @@ class AuditLog:
         if isinstance(value, list):
             return [self._redact(v) for v in value]
         if isinstance(value, str):
+            masked = value
+            for pat in self._TOKEN_SHAPES:
+                masked = pat.sub(_REDACTED, masked)
             # Secrets hidden inside JSON-encoded blobs: parse, redact, re-dump.
-            s = value.strip()
+            s = masked.strip()
             if len(s) >= 2 and s[0] in "{[":
                 try:
                     parsed = json.loads(s)
                 except Exception:
-                    return value
+                    return masked
                 if isinstance(parsed, (dict, list)):
                     return json.dumps(self._redact(parsed), default=str)
-        return value
+            return masked
         return value
 
     def record(self, result: EnforcementResult) -> None:

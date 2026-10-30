@@ -8,6 +8,7 @@ contract the YAML must satisfy.
 """
 from __future__ import annotations
 
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -65,6 +66,21 @@ class PolicyDefaults(BaseModel):
     detector_error_decision: Decision = Decision.REQUIRE_APPROVAL
 
 
+def _norm_tool_key(name: str) -> str:
+    """Normalize a tool name for policy lookup.
+
+    Case/whitespace variants previously missed the policy entry and fell
+    through to the unknown-tool default (a DENY downgraded to HOLD).
+    Invisible format characters (zero-width spaces) are stripped too, and
+    stored policy keys are normalized the same way, so neither a padded /
+    cased / zero-width caller string nor a cap-key policy entry can dodge
+    the intended rule.
+    """
+    nfkc = unicodedata.normalize("NFKC", name)
+    stripped = "".join(c for c in nfkc if unicodedata.category(c) != "Cf")
+    return stripped.strip().lower()
+
+
 class Policy(BaseModel):
     model_config = _STRICT
 
@@ -73,7 +89,12 @@ class Policy(BaseModel):
     tools: dict[str, ToolPolicy] = Field(default_factory=dict)
 
     def for_tool(self, name: str) -> ToolPolicy | None:
-        key = name.strip().lower() if isinstance(name, str) else name
+        if not isinstance(name, str):
+            return None
+        key = _norm_tool_key(name)
         if not key:
             return None
-        return self.tools.get(key)
+        for stored, policy in self.tools.items():
+            if _norm_tool_key(stored) == key:
+                return policy
+        return None

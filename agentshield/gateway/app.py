@@ -9,8 +9,11 @@ Two distinct roles, kept honest:
 
 Security controls (from review):
   * Optional API-key auth (AGENTSHIELD_API_KEY). When set, every endpoint —
-    including /v1/audit — requires it. The audit trail is sensitive and is not
-    exposed unauthenticated.
+    including /v1/audit and /v1/evidence — requires it. The audit trail is
+    sensitive and is not exposed unauthenticated.
+  * Optional split admin key (AGENTSHIELD_ADMIN_KEY). When set, /v1/admin/*
+    requires it instead of the regular API key, so a leaked read key cannot
+    flip the global enforcement switch.
   * Provenance is resolved from a trusted HMAC token, NOT from a caller-supplied
     `source` field. Without a valid token (and outside insecure dev mode) a call
     is treated as UNTRUSTED. See agentshield.provenance.
@@ -48,6 +51,21 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="missing or invalid API key")
 
 
+def _key_ok(provided: str | None, configured: str | None) -> bool:
+    return configured is not None and bool(provided) and provided == configured
+
+
+def require_api_admin(x_api_key: str | None = Header(default=None)) -> None:
+    """Gate admin endpoints. A dedicated AGENTSHIELD_ADMIN_KEY, when set, is
+    required; otherwise the regular API key gates them."""
+    admin = shield.config.admin_key
+    if admin is not None:
+        if not _key_ok(x_api_key, admin):
+            raise HTTPException(status_code=401, detail="missing or invalid admin key")
+        return
+    require_api_key(x_api_key)
+
+
 class CheckRequest(BaseModel):
     tool_name: str = Field(min_length=1)
     arguments: dict = Field(default_factory=dict)
@@ -71,13 +89,13 @@ class CheckResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
+    # Unauthenticated by design (liveness). No sensitive fields here: the
+    # policy path, the governed-tool list, and the dev-mode flag are only
+    # visible via the key-gated /v1/evidence endpoint.
     return {
         "status": "ok",
         "detectors": [d.name for d in shield.detectors],
-        "policy": shield.config.policy_path,
-        "tools_governed": sorted(shield.policy.tools.keys()),
         "auth_required": shield.config.api_key is not None,
-        "insecure_provenance_dev_mode": insecure_dev_mode(),
     }
 
 
@@ -128,7 +146,7 @@ def enforce_state() -> dict:
     return {"enforced": shield.enforce}
 
 
-@app.post("/v1/admin/enforce", dependencies=[Depends(require_api_key)])
+@app.post("/v1/admin/enforce", dependencies=[Depends(require_api_admin)])
 def set_enforce(body: EnforceUpdate) -> dict:
     """Flip the demo OFF/ON switch. Key-gated and audit-logged."""
     import json as _json
@@ -156,7 +174,7 @@ def set_enforce(body: EnforceUpdate) -> dict:
     return {"enforced": shield.enforce}
 
 
-@app.post("/v1/admin/reset", dependencies=[Depends(require_api_key)])
+@app.post("/v1/admin/reset", dependencies=[Depends(require_api_admin)])
 def reset_demo() -> dict:
     """Reset demo state: re-ingest the RAG corpus. Audit history is kept."""
     from ..rag.store import default_store
@@ -170,4 +188,5 @@ def evidence(limit: int = Query(default=20, ge=1, le=500)) -> dict:
     """Evidence pack for judges: health, switch state, recent audit entries."""
     return {"health": health(),
             "enforced": shield.enforce,
+            "provenance_dev_mode": insecure_dev_mode(),
             "entries": shield.audit.tail(limit)}

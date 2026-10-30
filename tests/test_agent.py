@@ -98,6 +98,24 @@ def test_graph_holds_legit_email_for_approval(tmp_path):
     assert out["outcome"] == "human-approved"
 
 
+def test_checkpoint_decision_flip_is_denied(tmp_path):
+    # Attacker with checkpoint access flips the recorded decision to allow
+    # and forges an approval — the process-local verdict pin must veto it.
+    g = _graph(tmp_path)
+    cfg = {"configurable": {"thread_id": "t-flip"}}
+    with trusted_scope(TrustLevel.USER):
+        paused = g.invoke({"query": "",
+                           "tool_name": "send_email",
+                           "arguments": {"to": "boss@corp.com",
+                                         "body": "weekly update"},
+                           "origin": "user",
+                           "context": ""}, cfg)
+        assert "__interrupt__" in paused
+        g.update_state(cfg, {"decision": "allow", "approved": "approve"})
+        out = g.invoke(Command(resume="approve"), cfg)
+    assert out["outcome"] == "denied"
+
+
 def test_graph_denied_approval_stays_held(tmp_path):
     g = _graph(tmp_path)
     cfg = {"configurable": {"thread_id": "t-deny2"}}

@@ -47,6 +47,24 @@ def test_approve_then_authorized(tmp_path):
     assert ok, why
 
 
+def test_approval_is_single_use(tmp_path):
+    # One human click authorizes one execution: a repeat authorization with
+    # identical arguments must fail, and the hold returns to pending.
+    shield, q = _setup(tmp_path)
+    call = _held_call(shield)
+    q.decide(call.id, "approve", approver="demo-human")
+    with trusted_scope(TrustLevel.USER):
+        ok, _ = q.authorized(shield, call)
+        assert ok
+        ok2, why2 = q.authorized(shield, call)
+        assert not ok2, why2
+    # The spent approval no longer covers the hold: the original hold is
+    # back in pending. (Each fresh check audits its own hold entry, so
+    # pending also lists the re-check holds — pre-existing audit-everything
+    # behavior, not part of this fix.)
+    assert call.id in [p["call_id"] for p in q.pending()]
+
+
 def test_swapped_arguments_refused(tmp_path):
     # TOCTOU: approval binds exact args; a swapped recipient must fail.
     shield, q = _setup(tmp_path)

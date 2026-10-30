@@ -16,6 +16,7 @@ label, so normalization never double-counts a signal.
 from __future__ import annotations
 
 import base64
+import html
 import re
 import unicodedata
 from urllib.parse import unquote
@@ -72,10 +73,18 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
      0.35, "persona reassignment Hindi ('tum ab se...')"),
     (re.compile(r"\b(muncheya|munche|hindina|meelina)\b.{0,40}\b(soochane|nirdesh)\b.{0,40}\b(marethu|marthu|ignore)\b|\b(marethu|marthu)\b.{0,40}\b(soochane|nirdesh)\b", re.I),
      0.6, "override: transliterated Kannada ('soochane marethu')"),
-    (re.compile(r"\bupi\b.{0,40}\b(pay|send|transfer|bhej|bhejo)\b|\b(pay|send|transfer|bhej)\b.{0,40}([\w.\-]{2,}@(ok\w+|ybl|ibl|paytm|upi)|upi://pay)|\bupi://pay\b", re.I),
+    (re.compile(r"\bupi\b.{0,40}\b(pay|send|transfer|bhej|bhejo|pannunga|pannu|cheyandi|cheyi)\b|\b(pay|send|transfer|bhej|pannunga|cheyandi)\b.{0,40}([\w.\-]{2,}@(ok\w+|ybl|ibl|paytm|upi)|upi://pay)|\bupi://pay\b", re.I),
      0.55, "UPI payment-target exfil (VPA / upi://pay + pay verb)"),
     (re.compile(r"\b(kisi\s+ko|kisko)\s+(mat\s+)?(batao|batana|bata|kaho)\b|\b(chhupao|chhupana|gupt|gupth)\b|\byaarigu\s+helabed[ai]\b", re.I),
      0.5, "secrecy Hindi/Kannada ('kisi ko mat batao', 'yaarigu helabedi')"),
+    (re.compile(r"\b(mun|munna|indha)\b.{0,40}\b(arivurai|instruction|order)\b.{0,40}\b(marandhu|marandu|ignore|forget)\b|\b(marandhu|marandu|ignore)\b.{0,40}\b(arivurai|instruction)\b", re.I),
+     0.6, "override: transliterated Tamil ('mun arivurai marandhu')"),
+    (re.compile(r"\b(yaarukum|yaarukkum)\b.{0,40}\b(sollathinga|solladha)\b|\bsollathinga\b", re.I),
+     0.5, "secrecy Tamil ('yaarukum sollathinga')"),
+    (re.compile(r"\b(mundu|ivi)\b.{0,40}\b(soochana|suchana|instruction)\b.{0,40}\b(marchipo|maruvu|ignore)\b|\b(marchipo|maruvu|ignore)\b.{0,40}\b(soochana|suchana|instruction)\b", re.I),
+     0.6, "override: transliterated Telugu ('mundu soochana marchipo')"),
+    (re.compile(r"\b(evariki|evaritho)\b.{0,40}\b(cheppakandi|cheppaku|cheppoddu)\b|\bcheppakandi\b|\bcheppoddu\b", re.I),
+     0.5, "secrecy Telugu ('evariki cheppakandi')"),
 ]
 
 # Invisible/format characters (zero-width spaces, bidi overrides, BOM, soft
@@ -128,14 +137,20 @@ def _extra_surfaces(haystack: str) -> list[str]:
         out += [nocom_space, normalize_text(nocom_space)]
     if nocom_empty != haystack and nocom_empty != nocom_space:
         out.append(nocom_empty)
-    # URL encoding (single and double): decode up to two rounds.
+    # URL encoding (single, double, triple, ...): decode to a fixpoint
+    # (bounded). Each round's output is scanned, so N-times-encoded
+    # payloads surface at the round where they become plaintext.
     decoded = haystack
-    for _ in range(2):
+    for _ in range(5):
         nxt = unquote(decoded)
         if nxt == decoded:
             break
         decoded = nxt
         out += [decoded, normalize_text(decoded)]
+    # HTML entities: "&#105;gnore" decodes to "ignore".
+    unesc = html.unescape(haystack)
+    if unesc != haystack:
+        out += [unesc, normalize_text(unesc)]
     # Homoglyph and leetspeak folds over the normalized view.
     norm = normalize_text(haystack)
     homo = "".join(_HOMOGLYPHS.get(c, c) for c in norm)

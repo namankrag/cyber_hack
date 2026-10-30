@@ -58,8 +58,19 @@ class trusted_scope:
         return self
 
     def __exit__(self, *exc) -> None:
-        if self._tokens:
-            _current_provenance.reset(self._tokens.pop())
+        # Scopes must nest in order (same-object re-entry is supported).
+        # A broken protocol (out-of-order or double exit) fails CLOSED to
+        # UNTRUSTED instead of raising mid-request or leaking USER.
+        if not self._tokens:
+            return
+        token = self._tokens.pop()
+        try:
+            if _current_provenance.get() is not self.source:
+                raise RuntimeError("trusted_scope exited out of order")
+            _current_provenance.reset(token)
+        except RuntimeError:
+            self._tokens.clear()
+            _current_provenance.set(TrustLevel.UNTRUSTED)
 
 
 def _secret() -> bytes | None:
@@ -78,7 +89,10 @@ def mint_token(source: TrustLevel | str, secret: str | None = None) -> str:
 
 def _verify_token(source: str, token: str | None) -> bool:
     key = _secret()
-    if not key or not token:
+    if not key or not isinstance(token, str) or not token:
+        # A non-string token (list/dict/int smuggled in via JSON args)
+        # previously crashed hmac.compare_digest with TypeError inside the
+        # enforcement path. It is simply not a valid token: UNTRUSTED.
         return False
     expected = hmac.new(key, source.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, token)

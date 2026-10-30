@@ -3,8 +3,10 @@
 TOCTOU answer: an approval binds the EXACT arguments hash. `authorized()`
 re-runs shield.check() on the current call and additionally requires a
 matching approval entry with the identical args hash. Swapped arguments,
-fresh DENY verdicts, and double approvals all fail closed. Approval entries
-are appended as new JSONL lines; history is never mutated.
+fresh DENY verdicts, and double approvals all fail closed. Approvals are
+single-use: a successful authorization consumes the approval, so one human
+click cannot authorize unlimited repeat executions. Approval entries are
+appended as new JSONL lines; history is never mutated.
 """
 from __future__ import annotations
 
@@ -50,6 +52,10 @@ class ApprovalQueue:
         """
         if entry.get("approval") not in ("approve", "deny"):
             return False
+        consumed = {e.get("consumed_by") for e in entries
+                    if e.get("approval") == "consumed"}
+        if entry.get("call_id") in consumed:
+            return False
         holds = self._holds_by_id(entries)
         original = holds.get(entry.get("approval_of"))
         if original is None:
@@ -87,7 +93,9 @@ class ApprovalQueue:
         raise ValueError(f"no such held call: {call_id}")
 
     def decide(self, call_id: str, verdict: str, approver: str = "human") -> dict:
-        """Record approve/deny for a held call. One decision per call."""
+        """Record approve/deny for a held call. One live decision per call:
+        a consumed (single-use spent) approval returns the hold to pending
+        so a repeat execution needs a fresh human decision."""
         if verdict not in ("approve", "deny"):
             raise ValueError("verdict must be 'approve' or 'deny'")
         original = self._find_original(call_id)
@@ -126,11 +134,34 @@ class ApprovalQueue:
         if fresh.decision is Decision.DENY:
             return False, "fresh check denies: execution refused"
         wanted = args_hash(call.tool_name, call.arguments, call.metadata)
-        for e in self._entries():
+        entries = self._entries()
+        for e in entries:
             if (e.get("approval_of") and e.get("approval") == "approve"
                     and e.get("args_hash") == wanted
-                    and self._approval_valid(e, self._entries())):
+                    and self._approval_valid(e, entries)):
                 if fresh.decision is Decision.ALLOW:
                     return True, "fresh check allows"
-                return True, "human approval matches exact arguments"
+                self._consume(e)
+                return True, "human approval matches exact arguments (single use)"
         return False, "no matching human approval for these exact arguments"
+
+    def _consume(self, approval: dict) -> None:
+        """Spend an approval. Append-only: history is never mutated."""
+        entry = {
+            "ts": _utcnow(),
+            "call_id": f"use_{secrets.token_hex(6)}",
+            "tool": approval.get("tool"),
+            "arguments": approval.get("arguments", {}),
+            "source": "user",
+            "decision": Decision.REQUIRE_APPROVAL.value,
+            "fail_closed": False,
+            "reasons": [],
+            "detections": [],
+            "metadata": {},
+            "approval": "consumed",
+            "consumed_by": approval.get("call_id"),
+            "approval_of": approval.get("approval_of"),
+        }
+        with self.audit._lock:
+            with self.audit.path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, default=str) + "\n")

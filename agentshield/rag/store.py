@@ -10,17 +10,36 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 _CORPUS = Path(__file__).resolve().parent.parent / "data" / "rag_corpus.jsonl"
 _COLLECTION = "agent_docs"
 _MAX_RESULTS = 50
+_MAX_DOC_CHARS = 100_000
+
+
+_DOC_ID_SAFE = re.compile(r"[^A-Za-z0-9_.:-]")
 
 
 def _sanitize_doc_id(doc_id: object) -> str:
-    """Doc IDs flow into LLM context as citations; strip control characters
-    so a planted doc_id cannot forge citation lines with embedded newlines."""
-    return "".join(c if c not in "\r\n" else " " for c in str(doc_id)).strip()
+    """Doc IDs flow into LLM context as citations: force a safe alphabet so
+    a planted doc_id cannot forge citation structure (newlines, brackets,
+    delimiters). Benign ids pass through unchanged."""
+    return _DOC_ID_SAFE.sub("_", str(doc_id)).strip("_") or "doc"
+
+
+def format_chunk(chunk: dict) -> str:
+    """Render one retrieved chunk as a citation line.
+
+    Chunk text is attacker-controlled (UNTRUSTED corpus): newlines are
+    escaped so a planted doc cannot forge citation delimiters
+    ("...\\n---\\n[fake] ...") and smuggle fake grounding into the agent
+    context or the demo output.
+    """
+    text = str(chunk.get("text", "")).replace("\r", " ").replace("\n", "\\n")
+    doc_id = _sanitize_doc_id(chunk.get("doc_id", ""))
+    return f"[{doc_id}] {text}"
 
 
 def _coerce_limit(n_results: object) -> int:
@@ -62,7 +81,7 @@ class RagStore:
     def ingest(self, corpus_path: str | Path = _CORPUS) -> int:
         """(Re)load the synthetic corpus. Idempotent: wipes the collection first."""
         # Parse the corpus BEFORE wiping: a bad path must not destroy the
-        # 12 good docs it was meant to replace.
+        # live collection it was meant to replace.
         ids, documents, metadatas = [], [], []
         with open(corpus_path, encoding="utf-8") as fh:
             for line in fh:
@@ -70,6 +89,8 @@ class RagStore:
                 if not line:
                     continue
                 doc = json.loads(line)
+                if len(doc["text"]) > _MAX_DOC_CHARS:
+                    continue  # oversized doc: refuse it, don't truncate it
                 ids.append(doc["id"])
                 documents.append(doc["text"])
                 metadatas.append(
@@ -81,6 +102,11 @@ class RagStore:
                         "channel": doc["channel"],
                     }
                 )
+        if len(set(ids)) != len(ids):
+            # A duplicate id makes Chroma's add() blow up AFTER the wipe
+            # below — fail before destroying anything (persistent empty-store
+            # DoS otherwise).
+            raise ValueError("duplicate doc ids in corpus; refusing to wipe live collection")
         try:
             self._client.delete_collection(self._collection_name)
         except Exception:

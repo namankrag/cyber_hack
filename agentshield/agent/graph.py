@@ -23,7 +23,7 @@ from langgraph.types import Command, interrupt  # noqa: F401  (Command used by c
 from ..engine_factory import AgentShield
 from ..models import Decision, ToolCall
 from ..provenance import resolve
-from ..rag.store import RagStore
+from ..rag.store import RagStore, format_chunk
 
 
 class AgentState(TypedDict, total=False):
@@ -68,6 +68,45 @@ def _reverify(shield: AgentShield, state: AgentState) -> str | None:
     return None
 
 
+_verdicts: dict[str, str] = {}  # thread_id -> decide-time verdict
+
+
+def _thread_id(config) -> str | None:
+    try:
+        return (config or {}).get("configurable", {}).get("thread_id")
+    except Exception:
+        return None
+
+
+def _record_verdict(config, decision: str) -> None:
+    """Pin the decide-time verdict outside checkpointed state.
+
+    Checkpoint writes (update_state) between pause and resume are
+    attacker-reachable wherever checkpoint access is exposed, so the
+    recorded verdict lives in process memory keyed by thread_id —
+    update_state cannot rewrite it. finalize() denies on any drift.
+    Single-process only: multi-process deployments need sticky sessions
+    or a shared verdict store (documented in THREAT_MODEL).
+    """
+    tid = _thread_id(config)
+    if tid is None:
+        return
+    if len(_verdicts) > 512:
+        _verdicts.clear()
+    _verdicts[tid] = decision
+
+
+def _verdict_drift(config, state: AgentState) -> str | None:
+    """Veto when the checkpointed decision differs from the recorded one."""
+    tid = _thread_id(config)
+    if tid is None:
+        return None
+    recorded = _verdicts.get(tid)
+    if recorded is not None and state.get("decision") != recorded:
+        return "denied"
+    return None
+
+
 def build_graph(shield: AgentShield | None = None,
                 store: RagStore | None = None,
                 checkpointer=None):
@@ -87,17 +126,18 @@ def build_graph(shield: AgentShield | None = None,
         if not q.strip():
             return {"chunks": [], "context": state.get("context", "")}
         chunks = store.retrieve(q)
-        texts = "\n---\n".join(f"[{c['doc_id']}] {c['text']}" for c in chunks)
+        texts = "\n---\n".join(format_chunk(c) for c in chunks)
         base = state.get("context", "")
         context = (base + "\n" + texts).strip() if base else texts
         return {"chunks": chunks, "context": context}
 
-    def decide(state: AgentState) -> dict:
+    def decide(state: AgentState, config=None) -> dict:
         call = ToolCall(tool_name=state["tool_name"],
                         arguments=dict(state.get("arguments", {})),
                         source=resolve(),  # trusted state only, never asserted
                         context=state.get("context", ""))
         result = shield.check(call)
+        _record_verdict(config, result.decision.value)
         return {"decision": result.decision.value,
                 "decided_tool": state["tool_name"],
                 "decided_arguments": dict(state.get("arguments", {})),
@@ -111,8 +151,8 @@ def build_graph(shield: AgentShield | None = None,
                             "reasons": state.get("reasons", [])})
         return {"approved": str(answer).strip().lower()}
 
-    def finalize(state: AgentState) -> dict:
-        veto = _reverify(shield, state)
+    def finalize(state: AgentState, config=None) -> dict:
+        veto = _verdict_drift(config, state) or _reverify(shield, state)
         if veto is not None:
             return {"outcome": veto}
         d = state.get("decision")

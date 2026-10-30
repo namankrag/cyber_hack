@@ -7,7 +7,7 @@ point of *use* (e.g. when their text lands in a send_email context).
 """
 from __future__ import annotations
 
-from .store import RagStore, default_store
+from .store import RagStore, default_store, format_chunk
 
 _store: RagStore | None = None
 
@@ -26,4 +26,4 @@ def read_rag_docs(query: str, n: int = 3) -> str:
     chunks = _get_store().retrieve(query, n_results=n)
     if not chunks:
         return "[no results]"
-    return "\n---\n".join(f"[{c['doc_id']}] {c['text']}" for c in chunks)
+    return "\n---\n".join(format_chunk(c) for c in chunks)

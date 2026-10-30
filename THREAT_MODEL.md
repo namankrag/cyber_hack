@@ -66,8 +66,11 @@ radius of a successful prompt injection**, not to perfectly detect injections.
   (the enforcement model is identical).
 - **Transport security & deployment.** TLS, network exposure, process
   permissions, secret storage, and log retention/rotation are the operator's
-  responsibility. Do not expose the gateway or `/v1/audit` publicly without auth
-  (set `AGENTSHIELD_API_KEY`).
+  responsibility. Do not expose the gateway, `/v1/audit`, or `/v1/evidence`
+  publicly without auth (set `AGENTSHIELD_API_KEY`). Set a dedicated
+  `AGENTSHIELD_ADMIN_KEY` so a leaked read key cannot flip `/v1/admin/*`.
+  `/health` and `/ready` stay unauthenticated by design (liveness only — no
+  policy, tool-list, or dev-mode details).
 - **Data sharing via the LLM detector.** Enabling it sends tool context and
   arguments to a third-party provider; treat it as a deliberate data-sharing
   feature.
@@ -76,6 +79,11 @@ radius of a successful prompt injection**, not to perfectly detect injections.
 
 - [ ] Set `AGENTSHIELD_HARNESS_SECRET` (else runs in insecure dev mode — flagged in `/health`).
 - [ ] Set `AGENTSHIELD_API_KEY` before exposing the gateway beyond localhost.
+- [ ] Set `AGENTSHIELD_ADMIN_KEY` (else the API key alone guards the global
+      enforcement switch).
+- [ ] Assume checkpoint access (update_state/get_state/resume) is privileged:
+      anyone who can write it can rewrite decisions — keep it single-process
+      or behind auth, sticky sessions, and a shared verdict store.
 - [ ] Review `redact_keys`; restrict permissions and set retention on the audit file.
 - [ ] Decide deliberately whether to enable the LLM detector (data leaves your env).
 - [ ] Put real tools behind the `guard` PEP or the MCP gateway — never call them around it.
