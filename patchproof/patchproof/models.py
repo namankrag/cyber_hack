@@ -24,6 +24,49 @@ class Finding:
     line: int
     snippet: str                 # the offending source line
     evidence: str = ""           # why the scanner flagged it
+    # Request shape, filled by the scanner so exploits and regression probes
+    # can be written as per-CWE templates instead of hardcoding endpoints.
+    route: str = ""              # e.g. "/accounts/<int:account_id>"
+    method: str = ""             # e.g. "GET"
+    param: str = ""              # tainted request parameter, e.g. "username"
+    sink: str = ""               # dangerous operation, e.g. "cursor.execute"
+
+    def to_dict(self) -> dict:
+        """JSON-safe snapshot, carried on sandbox jobs (patched runs included)."""
+        return {
+            "rule_id": self.rule_id,
+            "cwe": self.cwe,
+            "title": self.title,
+            "severity": self.severity.value,
+            "severity_rationale": self.severity_rationale,
+            "file": self.file,
+            "line": self.line,
+            "snippet": self.snippet,
+            "evidence": self.evidence,
+            "route": self.route,
+            "method": self.method,
+            "param": self.param,
+            "sink": self.sink,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Finding":
+        """Rebuild a Finding from a to_dict() snapshot."""
+        return cls(
+            rule_id=data.get("rule_id", ""),
+            cwe=data.get("cwe", ""),
+            title=data.get("title", ""),
+            severity=Severity(data.get("severity", "medium")),
+            severity_rationale=data.get("severity_rationale", ""),
+            file=data.get("file", ""),
+            line=int(data.get("line", 0)),
+            snippet=data.get("snippet", ""),
+            evidence=data.get("evidence", ""),
+            route=data.get("route", ""),
+            method=data.get("method", ""),
+            param=data.get("param", ""),
+            sink=data.get("sink", ""),
+        )
 
 
 @dataclass
@@ -43,7 +86,7 @@ class CheckResult:
 
 @dataclass
 class VerificationResult:
-    """The gate's verdict for one finding + its candidate patch."""
+    """The gate's verdict for one finding + its candidate fix."""
     rule_id: str
     baseline_exploited: bool          # vuln confirmed on the unpatched app
     patched_exploited: bool           # exploit still works after patch?

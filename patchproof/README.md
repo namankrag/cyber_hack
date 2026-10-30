@@ -33,15 +33,16 @@ dropped**. A patch that blocks the exploit but **breaks a feature is rejected**
 ```bash
 pip install -r requirements.txt
 
-# Full pipeline on the vulnerable app + report.html / report.json
+# Full pipeline on a vulnerable app + report.html / report.json
 python -m examples.run_demo
 
-# Or use the CLI
+# Or use the CLI (vulnbank = Flask fixture, shopapi = FastAPI fixture)
 python -m patchproof scan vulnbank/app.py --engine both
 python -m patchproof run  vulnbank/app.py --report report.html
+python -m patchproof run  shopapi/app.py --report shop_report.html
 python -m patchproof run  vulnbank/app.py --ai         # AI-generated patches (needs a key)
 
-# Tests (scanner, exploits, the gate incl. a rejected patch, engines, AI flow, CLI)
+# Tests (scanner, exploits, gate, engines, AI flow, CLI, 2nd fixture, manifest)
 python -m pytest -q
 ```
 
@@ -53,16 +54,19 @@ to curated patches.
 
 | Part | Path | Role |
 |---|---|---|
-| Target app (in-scope) | `vulnbank/app.py` | deliberately vulnerable Flask app; synthetic data |
-| Vuln docs | `vulnbank/VULNERABILITIES.md` | the planted weaknesses + CWE + in-scope file |
-| Scanner (find) | `patchproof/scanner.py` | AST-based SAST; findings with file:line, CWE, severity |
-| Exploits (prove) | `patchproof/checks.py` | executable attacks that confirm each finding is real |
-| Patches (fix) | `patchproof/patches.py` | minimal real diffs + a deliberately-breaking one |
+| Target apps (in-scope) | `vulnbank/app.py`, `shopapi/app.py` | deliberately vulnerable Flask + FastAPI apps; synthetic data |
+| Vuln docs | `vulnbank/VULNERABILITIES.md`, `shopapi/VULNERABILITIES.md` | the planted weaknesses + CWE + in-scope file, per fixture |
+| Fixtures manifest | `fixtures.json` + `patchproof/manifest.py` | allowlisted fixture dirs + sha256 per file; fail-closed gate |
+| Scanner (find) | `patchproof/scanner.py` | AST-based SAST; findings with file:line, CWE, severity, route, method, param, sink |
+| Exploits (prove) | `patchproof/checks.py` | per-CWE exploit/regression *templates* parameterized by the finding |
+| Patches (fix) | `patchproof/patches.py` | minimal real diffs per fixture + a deliberately-breaking one |
 | Verifier (gate) | `patchproof/verifier.py` | runs exploit + regression before/after on isolated copies |
 | Pipeline | `patchproof/pipeline.py` | orchestrates find → prove → patch → prove-fixed |
-| Report | `patchproof/report.py` | HTML + JSON: severity, location, diff, test status |
+| Report | `patchproof/report.py` | HTML + JSON: severity, location, request shape, diff, test status |
 
-## The five planted weaknesses
+## The planted weaknesses
+
+VulnBank (Flask) — five:
 
 | CWE | Class | Exploit | Fix |
 |---|---|---|---|
@@ -71,6 +75,21 @@ to curated patches.
 | CWE-639 | Broken access control (IDOR) | read another user's account by id | ownership check |
 | CWE-22 | Path traversal | `name = "../vault_secret.txt"` leaks a file | confine path to docs/ |
 | CWE-79 | Reflected XSS | `name = "<script>…"` reflected unescaped | HTML-escape output |
+
+ShopAPI (FastAPI) — three, in a different style (async handlers, Pydantic
+models, JSON responses), including two CWE classes VulnBank lacks:
+
+| CWE | Class | Exploit | Fix |
+|---|---|---|---|
+| CWE-89 | SQL injection | same `admin' --` login bypass, via `/auth/login` | parameterized query |
+| CWE-502 | Unsafe deserialization | crafted pickle in `POST /import` deserializes to a marker | reject pickle, accept JSON `data` |
+| CWE-798 | Hardcoded credential | the source literal in `GET /admin/report?api_key=` is a live key | key from env, deny when unset |
+
+The same CWE-89 template confirms and verifies *both* logins — the request
+shape (route, method, parameter) comes from the finding, not from hardcoded
+endpoints. No exploit or probe in `checks.py` names an endpoint; payload
+constants (markers, traversal strings) are the only literals, and they are
+never network calls — everything runs against a local test client.
 
 ## Scanners (the "find" step)
 
@@ -97,7 +116,9 @@ noise), and a patch proven to kill that exploit **without breaking the app**
 exploit flips to blocked *and* functionality is preserved — is the differentiator.
 
 Safety: all data is synthetic; the pipeline patches **copies**, never the live
-source, so the demo is reproducible and the target stays pristine.
+source, so the demo is reproducible and the target stays pristine. Execution
+is allowlisted by `fixtures.json` (fixture dirs + sha256 per file) — anything
+else is refused before it runs; see `SECURITY.md`.
 
 ## Scaling path
 

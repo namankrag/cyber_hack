@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .ai_patch import AIPatcher
-from .checks import EXPLOITS
+from .checks import EXPLOIT_TEMPLATES
+from .manifest import fixture_id_for_path
 from .models import Finding, VerificationResult
-from .patches import PATCHES
+from .patches import patch_for
 from .sandbox import assert_bundled_fixture_target, run_fixture_jobs
 from .scanner import scan
 from .verifier import verify_patch, verify_source
@@ -68,11 +69,15 @@ def run_pipeline(target_file: str | Path, engine: str = "auto",
     result = PipelineResult(target=str(target_file), engine=resolved_engine,
                             ai_enabled=ai_on)
 
+    # Only findings with a registered CWE template can be proven; anything
+    # else is reported with its scanner evidence and no patch attempt.
+    provable = [f for f in findings if f.cwe in EXPLOIT_TEMPLATES]
+    fixture = fixture_id_for_path(target_file) or "vulnbank"
     jobs = [
         {"key": f"finding-{index}", "source": original,
-         "rule_id": finding.rule_id, "regressions": False}
-        for index, finding in enumerate(findings)
-        if finding.rule_id in EXPLOITS
+         "rule_id": finding.rule_id, "regressions": False,
+         "fixture": fixture, "finding": finding.to_dict()}
+        for index, finding in enumerate(provable)
     ]
     try:
         proofs = run_fixture_jobs(jobs)
@@ -84,10 +89,15 @@ def run_pipeline(target_file: str | Path, engine: str = "auto",
     else:
         sandbox_error = None
 
-    for index, finding in enumerate(findings):
+    # Job keys are indexed over the provable findings, so walk them in the
+    # same order; findings without a template are reported unconfirmed.
+    provable_index = {id(f): index for index, f in enumerate(provable)}
+    for finding in findings:
         # 2) PROVE the finding is real with an executable exploit.
-        exploit = EXPLOITS.get(finding.rule_id)
-        proof = proofs.get(f"finding-{index}")
+        if id(finding) in provable_index:
+            proof = proofs.get(f"finding-{provable_index[id(finding)]}")
+        else:
+            proof = None
         ev = proof["exploit"] if proof else None
         confirmed = bool(ev and ev.exploited)
         issue = IssueReport(
@@ -111,6 +121,7 @@ def _best_patch(target_file, finding, ai):
     """
     rule_id = finding.rule_id
 
+    patch = patch_for(target_file, rule_id)
     if ai is not None:
         candidate = ai.propose(target_file, rule_id, finding.line)
         if candidate is not None:
@@ -119,10 +130,10 @@ def _best_patch(target_file, finding, ai):
             if v.accepted:
                 return v, "ai"
             # AI produced something, but it failed the gate -> fall back.
-            if rule_id in PATCHES:
-                return verify_patch(target_file, PATCHES[rule_id]), "ai-rejected→curated"
+            if patch is not None:
+                return verify_patch(target_file, patch), "ai-rejected→curated"
             return v, "ai (rejected)"
 
-    if rule_id in PATCHES:
-        return verify_patch(target_file, PATCHES[rule_id]), "curated"
+    if patch is not None:
+        return verify_patch(target_file, patch), "curated"
     return None, "none"

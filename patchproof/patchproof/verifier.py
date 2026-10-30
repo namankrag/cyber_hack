@@ -9,6 +9,10 @@ For one finding + candidate fix it runs the full proof:
 
 A fix is accepted only if all four hold. This is engine-agnostic about where the
 patch came from — a curated diff or an AI-generated one is judged identically.
+
+Findings travel with the jobs so the per-CWE templates are parameterized by
+the same request shape on both runs (a patched copy may no longer scan, so the
+baseline finding snapshot is reused rather than re-derived).
 """
 from __future__ import annotations
 
@@ -16,9 +20,29 @@ import difflib
 import time
 from pathlib import Path
 
-from .models import VerificationResult
+from .manifest import fixture_id_for_path, load_manifest
+from .models import Finding, VerificationResult
 from .patches import Patch
 from .sandbox import assert_bundled_fixture_target, run_fixture_jobs
+
+
+def _finding_for(source: str, rule_id: str) -> Finding | None:
+    from .scanner import scan_text
+    for finding in scan_text(source):
+        if finding.rule_id == rule_id:
+            return finding
+    return None
+
+
+def _fixture_of(target_file: str | Path) -> str:
+    fixture = fixture_id_for_path(target_file)
+    if fixture is None:
+        stem = Path(target_file).stem
+        if stem.endswith("_app"):
+            candidate = stem[:-len("_app")]
+            if candidate in load_manifest()["fixtures"]:
+                fixture = candidate
+    return fixture or "vulnbank"
 
 
 def _verify(target_file: str, original: str, patched_src: str,
@@ -26,11 +50,25 @@ def _verify(target_file: str, original: str, patched_src: str,
     started = time.perf_counter()
     result = VerificationResult(rule_id=rule_id, baseline_exploited=False,
                                 patched_exploited=True, patch_rationale=rationale)
+    finding = _finding_for(original, rule_id)
+    if finding is None:
+        result.error = (f"no scanner finding for rule {rule_id!r} in "
+                        f"{target_file} (fail-closed: nothing to verify)")
+        result.verification_time_ms = round((time.perf_counter() - started) * 1000, 3)
+        return result
     try:
+        from .scanner import scan_text
         result.diff = _diff(original, patched_src, target_file)
+        fixture = _fixture_of(target_file)
+        snapshot = finding.to_dict()
+        all_findings = [f.to_dict() for f in scan_text(original)]
         checks = run_fixture_jobs([
-            {"key": "baseline", "source": original, "rule_id": rule_id},
-            {"key": "patched", "source": patched_src, "rule_id": rule_id},
+            {"key": "baseline", "source": original, "rule_id": rule_id,
+             "fixture": fixture, "finding": snapshot,
+             "findings": all_findings},
+            {"key": "patched", "source": patched_src, "rule_id": rule_id,
+             "fixture": fixture, "finding": snapshot,
+             "findings": all_findings},
         ])
         result.baseline_exploited = checks["baseline"]["exploit"].exploited
         result.regression_before = checks["baseline"]["regressions"]

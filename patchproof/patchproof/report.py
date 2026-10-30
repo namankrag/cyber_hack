@@ -33,6 +33,10 @@ def to_dict(result: PipelineResult) -> dict:
             "severity": f.severity.value,
             "severity_rationale": f.severity_rationale,
             "location": f"{f.file}:{f.line}",
+            "route": f.route,
+            "method": f.method,
+            "param": f.param,
+            "sink": f.sink,
             "snippet": f.snippet,
             "confirmed": it.confirmed,
             "exploit_evidence": it.exploit_evidence,
@@ -54,7 +58,8 @@ def to_dict(result: PipelineResult) -> dict:
 
 
 def write_json(result: PipelineResult, path: str | Path) -> None:
-    Path(path).write_text(json.dumps(to_dict(result), indent=2))
+    Path(path).write_text(json.dumps(to_dict(result), indent=2),
+                           encoding="utf-8")
 
 
 def write_html(result: PipelineResult, path: str | Path) -> None:
@@ -80,6 +85,7 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
           <table class="meta">
             <tr><th>Severity</th><td><b>{it['severity'].upper()}</b> — {html.escape(it['severity_rationale'])}</td></tr>
             <tr><th>Location</th><td><code>{html.escape(it['location'])}</code></td></tr>
+          <tr><th>Request shape</th><td><code>{html.escape(it['method'])} {html.escape(it['route'])}</code> · param <code>{html.escape(it['param'])}</code> → sink <code>{html.escape(it['sink'])}</code></td></tr>
             <tr><th>Offending code</th><td><code>{html.escape(it['snippet'])}</code></td></tr>
             <tr><th>Exploit (proof it's real)</th><td>{html.escape(it['exploit_evidence'])}</td></tr>
             <tr><th>Patch rationale</th><td>{html.escape(it['patch_rationale'] or '—')}</td></tr>
@@ -89,7 +95,7 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
         </section>""")
 
     s = d["summary"]
-    doc = f"""<!doctype html><html><head><meta charset="utf-8">
+    doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PatchProof Report</title>
 <style>
@@ -128,7 +134,7 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
 <footer>Every finding above is confirmed by an executable exploit before it is acted on, and every accepted
 fix is proven to block that exploit while the regression suite stays green. Synthetic data only.</footer>
 </body></html>"""
-    Path(path).write_text(doc)
+    Path(path).write_text(doc, encoding="utf-8")
 
 
 def _color_diff(diff: str) -> str:

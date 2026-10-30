@@ -21,6 +21,7 @@ _RULES = Path(__file__).resolve().parent.parent / "semgrep_rules" / "rules.yaml"
 _SEVERITY = {
     "sqli": Severity.CRITICAL, "cmdi": Severity.CRITICAL,
     "pathtrav": Severity.HIGH, "idor": Severity.HIGH, "xss": Severity.MEDIUM,
+    "pickle": Severity.CRITICAL, "secret": Severity.HIGH,
 }
 _RATIONALE = {
     "sqli": "Pre-auth data exposure / auth bypass; trivially exploitable.",
@@ -28,15 +29,20 @@ _RATIONALE = {
     "pathtrav": "Reads arbitrary files outside the intended directory.",
     "idor": "Authenticated user can access other users' data.",
     "xss": "Reflected script executes in a victim's browser.",
+    "pickle": "Deserializing untrusted input can execute arbitrary code.",
+    "secret": "Hardcoded credential enables impersonation if leaked.",
 }
 _CWE = {"sqli": "CWE-89", "cmdi": "CWE-78", "pathtrav": "CWE-22",
-        "idor": "CWE-639", "xss": "CWE-79"}
+        "idor": "CWE-639", "xss": "CWE-79",
+        "pickle": "CWE-502", "secret": "CWE-798"}
 _TITLE = {
     "sqli": "SQL injection: user input in SQL string",
     "cmdi": "OS command injection: user input in shell command",
     "pathtrav": "Path traversal: user input in a filesystem path",
     "idor": "Broken access control: object returned without ownership check",
     "xss": "Reflected XSS: user input returned in HTML unescaped",
+    "pickle": "Unsafe deserialization: untrusted input passed to pickle",
+    "secret": "Hardcoded credential used for authentication",
 }
 
 

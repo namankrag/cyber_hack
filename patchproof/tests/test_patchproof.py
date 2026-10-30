@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from patchproof import ai_patch, scanner, semgrep_adapter
-from patchproof.checks import EXPLOITS, regression_suite
+from patchproof.checks import exploit_for_finding, regression_suite
 from patchproof.patches import PATCHES, PATCH_SQLI_BAD
 from patchproof.pipeline import run_pipeline
 from patchproof.sandbox import client_from_source
@@ -13,6 +13,10 @@ from patchproof.verifier import verify_patch, verify_source
 
 TARGET = str(Path(__file__).resolve().parent.parent / "vulnbank" / "app.py")
 ALL = {"sqli", "idor", "cmdi", "pathtrav", "xss"}
+
+
+def _findings():
+    return {f.rule_id: f for f in scan_file(TARGET)}
 
 
 # --- scanner ---------------------------------------------------------------
@@ -25,6 +29,23 @@ def test_findings_have_location_and_cwe():
         assert f.line > 0 and f.cwe and f.file.endswith("app.py")
 
 
+def test_findings_carry_request_shape():
+    shapes = _findings()
+    assert shapes["sqli"].route == "/login"
+    assert shapes["sqli"].method == "POST"
+    assert shapes["sqli"].param == "username"
+    assert shapes["sqli"].sink == "conn.execute"
+    assert shapes["idor"].route == "/accounts/<int:account_id>"
+    assert shapes["idor"].method == "GET"
+    assert shapes["idor"].param == "account_id"
+    assert shapes["cmdi"].route == "/ping" and shapes["cmdi"].param == "host"
+    assert shapes["pathtrav"].route == "/files"
+    assert shapes["pathtrav"].param == "name"
+    assert shapes["xss"].route == "/greet" and shapes["xss"].param == "name"
+    for f in shapes.values():
+        assert f.route and f.method and f.param and f.sink
+
+
 def test_scanner_no_false_positive_on_clean_code(tmp_path):
     clean = tmp_path / "clean.py"
     clean.write_text("def f(x):\n    return int(x) + 1\n")
@@ -34,20 +55,22 @@ def test_scanner_no_false_positive_on_clean_code(tmp_path):
 def test_pipeline_refuses_to_execute_out_of_scope_files(tmp_path):
     candidate = tmp_path / "outside_scope.py"
     candidate.write_text("raise RuntimeError('must not execute')\n")
-    with pytest.raises(ValueError, match="bundled VulnBank fixture"):
+    with pytest.raises(ValueError, match="Refusing"):
         run_pipeline(candidate, engine="ast")
 
 
 # --- exploits + regression on the vulnerable app --------------------------
 def test_all_exploits_succeed_on_vulnerable_app():
     src = Path(TARGET).read_text()
-    for rule_id, exploit in EXPLOITS.items():
-        assert exploit(client_from_source(src)).exploited, f"{rule_id}"
+    for rule_id, finding in _findings().items():
+        assert exploit_for_finding(client_from_source(src),
+                                   finding).exploited, f"{rule_id}"
 
 
 def test_regression_green_on_baseline():
     client = client_from_source(Path(TARGET).read_text())
-    assert all(c.passed for c in regression_suite(client))
+    assert all(c.passed for c in regression_suite(
+        client, list(_findings().values())))
 
 
 # --- the gate: accept good, reject breaking -------------------------------

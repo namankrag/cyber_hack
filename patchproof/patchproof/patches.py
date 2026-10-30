@@ -5,12 +5,18 @@ plus a rationale. The verifier applies them to an isolated copy and generates a
 unified diff, so what you see in the report is the actual change that was tested
 — not a hand-waved description.
 
-A deliberately BAD patch is included for `sqli` to demonstrate the verification
-gate rejecting a fix that blocks the exploit but breaks the application.
+A deliberately BAD patch is included for VulnBank `sqli` to demonstrate the
+verification gate rejecting a fix that blocks the exploit but breaks the
+application.
+
+Patches are looked up per fixture via :func:`patch_for` — the same rule id
+can exist in several fixtures (e.g. `sqli` in both VulnBank and ShopAPI) with
+fixture-specific anchors and diffs.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -147,3 +153,104 @@ PATCHES = {
     "pathtrav": PATCH_PATHTRAV,
     "xss": PATCH_XSS,
 }
+
+
+# --- ShopAPI patches (FastAPI fixture) ------------------------------------
+PATCH_SHOP_SQLI = Patch(
+    rule_id="sqli",
+    rationale="Use a parameterized query so user input is bound as data, "
+              "never parsed as SQL. Closes CWE-89 without changing behaviour "
+              "for legitimate credentials.",
+    replacements=[(
+        '''        # VULN[sqli]: CWE-89 — user input concatenated straight into SQL.
+        query = (
+            "SELECT * FROM users WHERE username = '%s' AND password = '%s'"
+            % (username, password)
+        )
+        try:
+            row = conn.execute(query).fetchone()''',
+        '''        # FIX[sqli]: parameterized query — input is bound, not interpolated.
+        try:
+            row = conn.execute(
+                "SELECT * FROM users WHERE username = ? AND password = ?",
+                (username, password),
+            ).fetchone()''',
+    )],
+)
+
+PATCH_SHOP_PICKLE = Patch(
+    rule_id="pickle",
+    rationale="Disable the legacy pickle envelope: untrusted bytes must never "
+              "reach pickle.loads (CWE-502). The JSON-native `data` document "
+              "keeps working unchanged.",
+    replacements=[(
+        '''        if payload.blob is not None:
+            # VULN[pickle]: CWE-502 — untrusted bytes handed to pickle.loads.
+            try:
+                obj = pickle.loads(base64.b64decode(payload.blob))
+            except Exception:
+                return JSONResponse({"error": "invalid blob"},
+                                    status_code=400)
+            return {"imported": str(obj), "type": type(obj).__name__}''',
+        '''        if payload.blob is not None:
+            # FIX[pickle]: legacy pickle envelope disabled — untrusted bytes
+            # must never reach pickle.loads. Send the JSON-native `data`.
+            return JSONResponse(
+                {"error": "legacy pickle import disabled;"
+                          " send JSON 'data' instead"},
+                status_code=400)''',
+    )],
+)
+
+PATCH_SHOP_SECRET = Patch(
+    rule_id="secret",
+    rationale="Read the expected key from the SHOPAPI_ADMIN_KEY environment "
+              "variable and deny every caller when none is deployed, instead "
+              "of trusting the hardcoded ADMIN_API_KEY literal (CWE-798). "
+              "Rotate/delete the literal out-of-band.",
+    replacements=[(
+        '''        # VULN[secret]: CWE-798 — api_key is compared against the hardcoded
+        # ADMIN_API_KEY module constant instead of a deployed secret.
+        _ = request  # reserved for future per-request context
+        if api_key != ADMIN_API_KEY:''',
+        '''        # FIX[secret]: expected key comes from the environment; with none
+        # deployed, deny every caller instead of trusting a source literal.
+        _ = request  # reserved for future per-request context
+        expected = os.environ.get("SHOPAPI_ADMIN_KEY", "")
+        if not expected or api_key != expected:''',
+    )],
+)
+
+SHOPAPI_PATCHES = {
+    "sqli": PATCH_SHOP_SQLI,
+    "pickle": PATCH_SHOP_PICKLE,
+    "secret": PATCH_SHOP_SECRET,
+}
+
+
+#: Patches per fixture. VulnBank keeps the historic PATCHES table untouched;
+#: ShopAPI adds its own. Rule ids may repeat across fixtures.
+FIXTURE_PATCHES = {
+    "vulnbank": PATCHES,
+    "shopapi": SHOPAPI_PATCHES,
+}
+
+
+def _fixture_of(target: str | Path) -> str | None:
+    from .manifest import fixture_id_for_path, load_manifest
+    fixture = fixture_id_for_path(target)
+    if fixture is None:
+        stem = Path(target).stem
+        if stem.endswith("_app"):
+            candidate = stem[:-len("_app")]
+            if candidate in load_manifest()["fixtures"]:
+                fixture = candidate
+    return fixture
+
+
+def patch_for(target: str | Path, rule_id: str) -> Patch | None:
+    """Return the curated patch for `rule_id` in the target's fixture."""
+    fixture = _fixture_of(target)
+    if fixture is None:
+        return None
+    return FIXTURE_PATCHES.get(fixture, {}).get(rule_id)

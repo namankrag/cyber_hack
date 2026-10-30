@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fixtures": {
+    "vulnbank": {
+      "dir": "vulnbank",
+      "files": {
+        "app.py": "02361b8d7e13dd7df26ab1a8264693854a511bc1060721099abd7066e8f99cbe"
+      }
+    },
+    "shopapi": {
+      "dir": "shopapi",
+      "files": {
+        "app.py": "16291cdbe169aeffc56f32f732ecaab9cfc2e8daa87f787e0b89d126043450e9"
+      }
+    }
+  }
+}

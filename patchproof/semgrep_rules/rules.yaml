@@ -43,3 +43,24 @@ rules:
           - pattern: open(f"...")
           - pattern: open($A + $B)
           - pattern: open($A + $B + $C)
+
+  - id: patchproof-pickle
+    languages: [python]
+    severity: ERROR
+    message: "Untrusted input passed to pickle (CWE-502)"
+    metadata: {cwe: "CWE-502", rule_id: "pickle"}
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads(...)
+          - pattern: pickle.load(...)
+
+  - id: patchproof-hardcoded-secret
+    languages: [python]
+    severity: WARNING
+    message: "Hardcoded credential used for authentication (CWE-798)"
+    metadata: {cwe: "CWE-798", rule_id: "secret"}
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(api[_-]?key|secret|token|password|passwd|private[_-]?key)$

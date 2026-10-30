@@ -4,9 +4,33 @@ PatchProof is a demonstrator for a verification-first find → prove → patch �
 prove-fixed workflow. Read this before pointing it at anything.
 
 ## What it is for
-The bundled **VulnBank** app (`vulnbank/`) and its documented, synthetic
-vulnerabilities. All data is fake. The target is the single file
-`vulnbank/app.py`.
+The bundled practice fixtures — the **VulnBank** app (`vulnbank/`, Flask) and
+the **ShopAPI** app (`shopapi/`, FastAPI) — and their documented, synthetic
+vulnerabilities. All data is fake. In-scope files are listed per fixture in
+its `VULNERABILITIES.md` (`vulnbank/app.py`, `shopapi/app.py`).
+
+## Execution gate: the fixtures manifest (`fixtures.json`)
+Exploits and candidate patches are executed **only** for files allowlisted in
+the manifest, and only when their content matches the pinned sha256:
+
+```json
+{"version": 1,
+ "fixtures": {"<fixture_id>": {"dir": "<subdir of patchproof/>",
+                               "files": {"<file>": "<sha256>"}}}}
+```
+
+Concretely, `assert_bundled_fixture_target` allows a path iff (a) it sits
+under a manifest-listed fixture dir **and** its bytes hash to the pinned
+value, or (b) it is one of SecureAI's isolated remediation copies (a
+temporary `vulnbank_app.py` / `shopapi_app.py` under a `secureai-remediation-*`
+directory, used for verify-before-apply). Everything else raises `ValueError`
+and nothing runs — fail-closed. After intentionally editing a fixture,
+re-stamp its pin and review the diff before committing:
+
+```bash
+python -m patchproof.manifest --refresh   # re-stamp pins from disk
+python -m patchproof.manifest --check     # verify pins match
+```
 
 ## It runs real exploits and loads code — use only on trusted fixtures
 To *prove* a finding, PatchProof executes a real exploit against the app, and
@@ -31,7 +55,7 @@ endpoint). This is safe for the bundled synthetic app but means:
   `--ai` as a deliberate data-sharing choice (a local model is a planned option).
 
 ## Limitations (what it does NOT claim)
-- The built-in scanner covers five CWE classes with intra-file heuristics; it is
+- The built-in scanner covers seven CWE classes with intra-file heuristics; it is
   not a complete SAST. Semgrep is wired in as a second engine for breadth.
 - Detection is best-effort; the **verification gate**, not the scanner, is the
   guarantee that matters.
