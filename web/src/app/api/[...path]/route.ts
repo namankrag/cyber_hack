@@ -1,44 +1,86 @@
 import { NextResponse } from "next/server";
+import {
+  ADMIN_KEY,
+  ADMIN_REQUIRED_DETAIL,
+  API_KEY,
+  GATEWAY,
+  MAX_PROXY_BODY_BYTES,
+  csrfFailure,
+  declaredBodyTooLarge,
+  getSessionToken,
+  hasBadSegment,
+  isPrivileged,
+  jsonContentFailure,
+  matchRoute,
+  rawPathHasEncodedTraversal,
+  verifySessionToken,
+} from "@/app/api/_lib/proxy-auth";
 
-const GATEWAY = (process.env.AGENTSHIELD_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-const API_KEY = process.env.AGENTSHIELD_API_KEY || "";
-const ADMIN_KEY = process.env.AGENTSHIELD_ADMIN_KEY || "";
-
-const ALLOWED_PREFIXES = ["health", "ready", "v1/"];
-
-function isAllowed(path: string[]) {
-  const joined = path.join("/");
-  return ALLOWED_PREFIXES.some((prefix) => joined === prefix || joined.startsWith(prefix));
-}
+export const runtime = "nodejs";
 
 async function forward(request: Request, path: string[]) {
-  if (!isAllowed(path)) {
+  const method = request.method.toUpperCase();
+
+  // Reject traversal and encoded slashes before any routing decision.
+  const rawPath = new URL(request.url).pathname;
+  if (rawPathHasEncodedTraversal(rawPath) || hasBadSegment(path)) {
     return NextResponse.json({ detail: "Not found" }, { status: 404 });
   }
 
-  const incoming = new URL(request.url);
-  const target = new URL(`${GATEWAY}/${path.join("/")}`);
-  incoming.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+  // Exact method + route allowlist (no prefix matching).
+  if (!matchRoute(method, path)) {
+    return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  }
 
-  const privileged =
-    path.join("/").startsWith("v1/admin") ||
-    path.join("/").startsWith("v1/approvals") ||
-    path.join("/").startsWith("v1/redteam");
+  // Same-origin check on mutating requests (F2).
+  const csrf = csrfFailure(request);
+  if (csrf) return csrf;
+
+  const joined = path.join("/");
+
+  // Privileged gateway routes require a valid admin session (F1). The
+  // ADMIN_KEY is attached server-side only; it is never sent to the browser.
+  if (isPrivileged(joined) && !verifySessionToken(getSessionToken(request))) {
+    return NextResponse.json({ detail: ADMIN_REQUIRED_DETAIL }, { status: 401 });
+  }
+
+  const privileged = isPrivileged(joined);
   const key = privileged ? ADMIN_KEY || API_KEY : API_KEY;
+
+  // Declared-size pre-check so an oversized body is rejected before buffering.
+  if (declaredBodyTooLarge(request)) {
+    return NextResponse.json(
+      { detail: "Request body exceeds the 64KB proxy limit." },
+      { status: 413 },
+    );
+  }
+
+  let body: string | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    const buffer = await request.arrayBuffer();
+    if (buffer.byteLength > MAX_PROXY_BODY_BYTES) {
+      return NextResponse.json(
+        { detail: "Request body exceeds the 64KB proxy limit." },
+        { status: 413 },
+      );
+    }
+    const jsonError = jsonContentFailure(request, buffer.byteLength);
+    if (jsonError) return jsonError;
+    body = buffer.byteLength > 0 ? Buffer.from(buffer).toString("utf8") : undefined;
+  }
+
+  const incoming = new URL(request.url);
+  const target = new URL(`${GATEWAY}/${joined}`);
+  incoming.searchParams.forEach((value, key) => target.searchParams.set(key, value));
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (key) headers["X-API-Key"] = key;
   const contentType = request.headers.get("content-type");
   if (contentType) headers["Content-Type"] = contentType;
 
-  let body: string | undefined;
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    body = await request.text();
-  }
-
   try {
     const response = await fetch(target.toString(), {
-      method: request.method,
+      method,
       headers,
       body,
       cache: "no-store",

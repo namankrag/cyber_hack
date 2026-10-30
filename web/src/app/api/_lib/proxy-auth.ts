@@ -1,0 +1,210 @@
+/**
+ * Server-only helpers for the /api proxy and the admin session routes.
+ *
+ * Never import this module from a client component: it reads server-side
+ * secrets (ADMIN_PASSWORD, ADMIN_KEY) from the process environment.
+ */
+
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { NextResponse } from "next/server";
+
+export const GATEWAY = (process.env.AGENTSHIELD_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+export const API_KEY = process.env.AGENTSHIELD_API_KEY || "";
+export const ADMIN_KEY = process.env.AGENTSHIELD_ADMIN_KEY || "";
+
+export const ADMIN_SESSION_COOKIE = "asg_admin";
+export const SESSION_TTL_SECONDS = 8 * 60 * 60;
+export const MAX_PROXY_BODY_BYTES = 64 * 1024;
+
+export const ADMIN_REQUIRED_DETAIL =
+  "Administrator login required. Sign in on the Settings page with the admin password, then retry.";
+
+const PRIVILEGED_PREFIXES = ["v1/admin", "v1/approvals", "v1/redteam"];
+
+/**
+ * Exact method + route allowlist. No prefix matching: a request is forwarded
+ * only when both the method and the full path match an entry below (or the
+ * single dynamic approvals decision route handled in matchRoute).
+ */
+const EXACT_ROUTES = new Set([
+  "GET health",
+  "GET ready",
+  "POST v1/check",
+  "GET v1/audit",
+  "GET v1/enforce",
+  "POST v1/admin/enforce",
+  "POST v1/admin/reset",
+  "GET v1/approvals",
+  "GET v1/approvals/pending",
+  "POST v1/approvals/decide",
+  "GET v1/evidence",
+  "GET v1/bench/latest",
+  "GET v1/metrics",
+  "GET v1/threats",
+  "GET v1/policy",
+  "GET v1/tools",
+  "GET v1/agents",
+  "GET v1/corpus",
+  "GET v1/redteam/scenarios",
+  "GET v1/redteam/history",
+  "POST v1/redteam/run",
+  "GET v1/evidence/reports",
+]);
+
+const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+export function matchRoute(method: string, segments: string[]): boolean {
+  const joined = segments.join("/");
+  if (EXACT_ROUTES.has(`${method} ${joined}`)) return true;
+  // Single dynamic route: POST /v1/approvals/{call_id}. "decide" and
+  // "pending" are reserved words served by their own exact entries above.
+  return (
+    method === "POST" &&
+    segments.length === 3 &&
+    segments[0] === "v1" &&
+    segments[1] === "approvals" &&
+    segments[2] !== "decide" &&
+    segments[2] !== "pending" &&
+    CALL_ID_RE.test(segments[2])
+  );
+}
+
+/** Reject paths carrying encoded slashes or backslashes (raw URL check). */
+export function rawPathHasEncodedTraversal(rawPath: string): boolean {
+  return /%2f|%5c/i.test(rawPath);
+}
+
+/** Reject traversal / empty / separator-bearing decoded segments. */
+export function hasBadSegment(segments: string[]): boolean {
+  return segments.some(
+    (segment) =>
+      segment === "" ||
+      segment === "." ||
+      segment === ".." ||
+      segment.includes("/") ||
+      segment.includes("\\"),
+  );
+}
+
+export function isPrivileged(joinedPath: string): boolean {
+  return PRIVILEGED_PREFIXES.some(
+    (prefix) => joinedPath === prefix || joinedPath.startsWith(`${prefix}/`),
+  );
+}
+
+/**
+ * Same-origin check for browser-issued mutations. Non-browser clients
+ * (curl, tests) send no Origin/Referer and are allowed through; a present
+ * Origin or Referer must match this server's own origin.
+ */
+export function csrfFailure(request: Request): NextResponse | null {
+  const method = request.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  const expected = new URL(request.url).origin;
+  const origin = request.headers.get("origin");
+  if (origin) {
+    if (origin !== expected) {
+      return NextResponse.json({ detail: "Cross-site request rejected." }, { status: 403 });
+    }
+    return null;
+  }
+  const referer = request.headers.get("referer");
+  if (referer) {
+    let parsed: URL;
+    try {
+      parsed = new URL(referer);
+    } catch {
+      return NextResponse.json({ detail: "Cross-site request rejected." }, { status: 403 });
+    }
+    if (parsed.origin !== expected) {
+      return NextResponse.json({ detail: "Cross-site request rejected." }, { status: 403 });
+    }
+  }
+  return null;
+}
+
+/**
+ * Mutations carrying a body must declare application/json. Empty-body
+ * POSTs (for example /v1/admin/reset) carry no Content-Type and pass.
+ */
+export function jsonContentFailure(request: Request, bodyBytes: number): NextResponse | null {
+  const method = request.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  if (bodyBytes === 0) return null;
+  const contentType = (request.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return NextResponse.json(
+      { detail: "Mutating requests must use Content-Type: application/json." },
+      { status: 415 },
+    );
+  }
+  return null;
+}
+
+/** Pre-read body cap from the declared Content-Length, when present. */
+export function declaredBodyTooLarge(request: Request): boolean {
+  const declared = request.headers.get("content-length");
+  return declared !== null && /^\d+$/.test(declared.trim()) && Number(declared) > MAX_PROXY_BODY_BYTES;
+}
+
+function adminPassword(): string {
+  return process.env.ADMIN_PASSWORD || "";
+}
+
+export function adminPasswordConfigured(): boolean {
+  return adminPassword().length > 0;
+}
+
+export function passwordOk(provided: unknown): boolean {
+  const expected = adminPassword();
+  if (!expected || typeof provided !== "string" || !provided) return false;
+  const actual = createHash("sha256").update(provided, "utf8").digest();
+  const wanted = createHash("sha256").update(expected, "utf8").digest();
+  return actual.length === wanted.length && timingSafeEqual(actual, wanted);
+}
+
+export function mintSessionToken(nowSec: number = Math.floor(Date.now() / 1000)): string {
+  const exp = nowSec + SESSION_TTL_SECONDS;
+  const body = String(exp);
+  const sig = createHmac("sha256", adminPassword()).update(`asg-admin.${body}`, "utf8").digest("hex");
+  return `${body}.${sig}`;
+}
+
+export function verifySessionToken(token: string | null): boolean {
+  if (!token || !adminPasswordConfigured()) return false;
+  const match = /^(\d+)\.([0-9a-f]{64})$/.exec(token.trim());
+  if (!match) return false;
+  const exp = Number(match[1]);
+  if (!Number.isSafeInteger(exp) || exp * 1000 <= Date.now()) return false;
+  let expected: string;
+  try {
+    expected = createHmac("sha256", adminPassword()).update(`asg-admin.${match[1]}`, "utf8").digest("hex");
+  } catch {
+    return false;
+  }
+  const provided = Buffer.from(match[2], "utf8");
+  const wanted = Buffer.from(expected, "utf8");
+  return provided.length === wanted.length && timingSafeEqual(provided, wanted);
+}
+
+export function getSessionToken(request: Request): string | null {
+  const header = request.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    if (part.slice(0, index).trim() === ADMIN_SESSION_COOKIE) {
+      const value = part.slice(index + 1).trim();
+      return value || null;
+    }
+  }
+  return null;
+}
+
+export function buildSessionCookie(token: string | null): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  if (!token) {
+    return `${ADMIN_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`;
+  }
+  return `${ADMIN_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${SESSION_TTL_SECONDS}`;
+}
