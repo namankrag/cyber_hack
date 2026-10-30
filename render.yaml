@@ -13,5 +13,14 @@ services:
         sync: false
       - key: AGENTSHIELD_ADMIN_KEY
         sync: false
+    # Audit durability (needs a paid plan: free has no disks). Uncomment
+    # together with a disk to stop restarts wiping the evidence trail:
+    # disk:
+    #   name: agentshield-audit
+    #   mountPath: /var/agentshield
+    #   sizeGB: 1
+    # envVars:
+    #   - key: AGENTSHIELD_AUDIT_PATH
+    #     value: /var/agentshield/audit.log.jsonl
       - key: AGENTSHIELD_DETECTORS
         value: heuristic

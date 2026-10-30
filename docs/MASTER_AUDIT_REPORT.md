@@ -89,19 +89,19 @@ repo uses only embedded `Client()`/`PersistentClient()` (no `HttpClient`,
 no server, no host/port wiring — grepped). No reachable trigger exists from
 this codebase. Action: monitor for a fixed release, keep the embedded-only
 posture (do not add server/auth usage). Downgrading/ignoring is impossible;
-upgrading is impossible — documented instead of pretended.
+upgrading is impossible — documented instead of pretended. Re-scan before demo day (isolated venv, never into the project env): `python -m venv %TEMP%\audit_venv && %TEMP%\audit_venv\Scripts\python -m pip install pip-audit && %TEMP%\audit_venv\Scripts\python -m pip-audit -r requirements.txt` — if a fixed chromadb release appears, pin it, reinstall, and re-run the suite.
 
 ### M6 — Render ephemeral FS loses the audit trail on restart (Medium, G) — recommendation only
 `render.yaml` mounts no disk; `AGENTSHIELD_AUDIT_PATH` defaults to a container-local file. Every redeploy/restart wipes the evidence the product exists to produce. No code fix is possible at the free tier (Render disks need a paid plan). Recommendation: attach a Render disk and set `AGENTSHIELD_AUDIT_PATH` onto it, or ship logs externally; documented here and in THREAT_MODEL operator duties.
 
-### M7 — No rate limiting (Medium, C) — recommendation only
-No limiter library or in-app throttle (verified: no slowapi/limiter in code or requirements). The 413 body cap (M2/F2) bounds per-request cost; request *rate* remains the edge's job. An in-app token bucket was rejected deliberately: it adds shared state that breaks the stateless-demo assumption and risks throttling the judges' own demo bursts. Recommendation: Render/edge rate limiting in front of the gateway in prod.
+### M7 — No rate limiting (Medium, C) — FIXED (backstop) + edge recommendation
+Was: no limiter library or in-app throttle. Fix: fixed-window per-IP middleware (`AGENTSHIELD_RATE_LIMIT_PER_MIN`, default 600, 0 disables; 429 + `Retry-After`; `/health` + `/ready` exempt so probes never kill the service; IP table bounded at 4096 entries since XFF is spoofable). Verified: limit 5 → 6th request 429s, health stays 200; full suite green under the default. Residual, stated honestly: XFF spoofing rotates identity, so this is a burst backstop — Render/edge limiting remains the real boundary in prod.
 
-### M8 — Public `/docs` + `/openapi.json` (Informational, E) — documented, no change
-FastAPI's interactive docs are world-readable (unauthenticated, like `/health`). Needed for the judged demo; schemas expose only tool shapes, no secrets. Recommendation: gate or disable docs in prod (`docs_url=None` behind an env flag) — recorded as a roadmap item, not implemented to avoid degrading the demo.
+### M8 — Public `/docs` + `/openapi.json` (Informational, E) — FIXED (env-gated)
+Was: world-readable interactive docs. Fix: `AGENTSHIELD_ENABLE_DOCS` (default `1` keeps the judged demo intact; `0` closes `/docs`, `/redoc`, and `/openapi.json`). Verified: `0` → 404 on `/openapi.json`, `1` → 200. Schemas expose only tool shapes, no secrets, either way.
 
 ### M9 — Mutable base tag + floor-pin drift (Low/Info, G) — recommendations only
-`python:3.11-slim` floats on patch releases (pin to a digest via Renovate for reproducible builds). `requirements.txt` uses floor pins (`>=`); pip-audit reports no CVEs in them today, but a `requirements.lock` (pip-compile, hashed) is the permanent fix and should be generated before going live. Neither was changed now: both are build-reproducibility items, not reachable vulnerabilities.
+`python:3.11-slim` floats on patch releases (pin to a digest via Renovate for reproducible builds). `requirements.txt` uses floor pins (`>=`); pip-audit reports no CVEs in them today, but a hashed `requirements.lock` is the permanent fix. One was attempted (pip-compile, isolated venv) but resolution did not complete in the audit window — terminated rather than ship an unverified half-lockfile. Generate it before going live (`pip-compile --generate-hashes requirements.txt -o requirements.lock`), install into a fresh venv, re-run the suite, and only then switch the Dockerfile to it.
 
 ## 4. Independent hunter lane (8 findings, all addressed or scoped)
 
@@ -148,7 +148,7 @@ A (authN/Z): API-key + split admin key, no sessions/JWT/passwords to attack — 
 
 ## 8. Security tests performed
 
-13 new committed tests (H1×4 payload + end-to-end HOLD, H2×1, H3×1, H4×2, H6×2, H8b×1, H5×1, H8c×1) plus 4 from the first master batch (headers, 413 ×2 doors, telemetry). Live probes: `/tmp/master_probe_a.py` (before: headers absent, 5MB→200/4.96s) and `/tmp/master_retest.py` (after: headers on all paths incl. errors, 5MB→413/0.02s, poison DENY, legit ALLOW — ALL PASS). Hunter repro sketches re-executed against the fixed tree (all blocked/held).
+19 new committed tests: 13 hunter-lane (H1×4 payload + end-to-end HOLD, H2×1, H3×1, H4×2, H6×2, H8b×1, H5×1, H8c×1) + 4 first master batch (headers, 413 ×2 doors, telemetry) + 2 backstop batch (rate-limit 429 + health exempt, docs toggle). Live probes: `/tmp/master_probe_a.py` (before: headers absent, 5MB→200/4.96s) and `/tmp/master_retest.py` (after: headers on all paths incl. errors, 5MB→413/0.02s, poison DENY, legit ALLOW — ALL PASS). Hunter repro sketches re-executed against the fixed tree (all blocked/held).
 
 ## 9. Before-and-after verification
 
@@ -168,10 +168,12 @@ A (authN/Z): API-key + split admin key, no sessions/JWT/passwords to attack — 
 | MCP blank name | unaudited | DENY + audit line |
 | Telemetry | default-on (sink no-op) | explicitly off, pinned by test |
 | Image context | 526MB venv + git + audit baked | `.dockerignore` excludes |
+| No rate limit | unbounded bursts | 600/min + 429, probes exempt |
+| Public docs | always on | `AGENTSHIELD_ENABLE_DOCS=0` closes |
 
 ## 10. Functional regression results
 
-`pytest tests -q` → **99 passed** (86 prior + 13 new). Demo: all 6 beats correct. Semgrep: 238 rules, 59 files, **0 findings**, exit 0. No legitimate flow changed verdicts: legit search ALLOW, legit email HOLD→approve, admin auth parity (wrong key 401 / right key 200), benign corpus 0.
+`pytest tests -q` → **101 passed** (82 prior + 19 new). Demo: all 6 beats correct. Semgrep: 238 rules, 59 files, **0 findings**, exit 0. No legitimate flow changed verdicts: legit search ALLOW, legit email HOLD→approve, admin auth parity (wrong key 401 / right key 200), benign corpus 0.
 
 ## 11. Remaining risks, limitations, recommendations
 
@@ -187,4 +189,4 @@ Recommendations in priority order: (1) attach a Render disk for the audit log; (
 - Low resolved: **7** (M1, H3, H4, H5, H6, H7 via M2, H8).
 - Accepted/documented without code change: **5** (M5 no-fix CVEs, M6 ephemeral audit, M7 rate limiting, M8 public docs, M9 lockfile/base-pin) + prior red-loop residuals (unchanged, see `RED_LOOP_REPORT.md`).
 - Not verified: **1** (Docker build effect of `.dockerignore` — inspection-verified only).
-- Build and test status: `pytest` **99 passed**; Semgrep **238 rules / 0 findings / exit 0**; demo **6/6 beats**; re-test probe **ALL PASS**.
+- Build and test status: `pytest` **101 passed**; Semgrep **238 rules / 0 findings / exit 0**; demo **6/6 beats**; re-test probe **ALL PASS**.

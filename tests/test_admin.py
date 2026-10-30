@@ -147,6 +147,25 @@ def test_admin_toggle_is_not_a_pending_hold(tmp_path, monkeypatch):
     c.post("/v1/admin/enforce", json={"enabled": True}, headers=key)
 
 
+def test_rate_limit_kicks_in_and_health_stays_exempt(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_RATE_LIMIT_PER_MIN", "5")
+    c = _client(tmp_path, monkeypatch)
+    key = {"X-API-Key": "t"}
+    codes = [c.post("/v1/check", json=POISON, headers=key).status_code
+             for _ in range(7)]
+    assert codes[-1] == 429
+    assert c.get("/health").status_code == 200
+
+
+def test_docs_toggle(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_ENABLE_DOCS", "0")
+    c = _client(tmp_path, monkeypatch)
+    assert c.get("/openapi.json").status_code == 404
+    monkeypatch.setenv("AGENTSHIELD_ENABLE_DOCS", "1")
+    c2 = _client(tmp_path, monkeypatch)
+    assert c2.get("/openapi.json").status_code == 200
+
+
 def test_health_has_no_sensitive_fields_and_evidence_does(tmp_path, monkeypatch):
     c = _client(tmp_path, monkeypatch)
     key = {"X-API-Key": "t"}

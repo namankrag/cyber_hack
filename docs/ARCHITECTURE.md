@@ -105,6 +105,8 @@ the point of use.
 | `AGENTSHIELD_REDACT_KEYS` | built-ins | extra keys (normalized before matching) |
 | `AGENTSHIELD_INJECTION_THRESHOLD` | `0.5` | detector threat cutoff |
 | `AGENTSHIELD_LLM_TIMEOUT_S` | `8.0` | LLM detector timeout (fail-closed on expiry) |
+| `AGENTSHIELD_RATE_LIMIT_PER_MIN` | `600` | per-IP fixed window; 0 disables; `/health`+`/ready` exempt |
+| `AGENTSHIELD_ENABLE_DOCS` | `1` | `0` closes `/docs` + `/redoc` + `/openapi.json` |
 
 ## Runbook
 

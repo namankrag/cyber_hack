@@ -25,6 +25,8 @@ Docs: http://127.0.0.1:8000/docs
 from __future__ import annotations
 
 import hmac
+import os
+import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -35,11 +37,18 @@ from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
 from ..provenance import insecure_dev_mode, resolve
 
+_DOCS_ON = os.getenv("AGENTSHIELD_ENABLE_DOCS", "1") != "0"
+
 app = FastAPI(
     title="AgentShield",
     version="0.2.0",
     description="Secure the agent, not just the prompt. "
                 "Policy enforcement at the tool-call boundary.",
+    # Interactive docs are a demo asset; prod deployments set
+    # AGENTSHIELD_ENABLE_DOCS=0 to close the info surface.
+    docs_url="/docs" if _DOCS_ON else None,
+    redoc_url="/redoc" if _DOCS_ON else None,
+    openapi_url="/openapi.json" if _DOCS_ON else None,
 )
 
 # Single shared runtime; the engine itself is stateless per call.
@@ -74,6 +83,50 @@ async def _body_size_limit(request: Request, call_next):
     return await call_next(request)
 
 
+
+
+_RATE_BUCKETS: dict[str, list] = {}  # ip -> [window_minute, count]
+_RATE_CAP_IPS = 4096  # bound the table itself: XFF is spoofable
+
+
+def _rate_limit_per_min() -> int:
+    try:
+        return max(0, int(os.getenv("AGENTSHIELD_RATE_LIMIT_PER_MIN",
+                                    "600") or 0))
+    except ValueError:
+        return 600
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next):
+    """Fixed-window per-IP backstop (429 + Retry-After).
+
+    Edge/Render does the real limiting; this only stops a burst from
+    melting the single demo worker. Liveness probes are exempt so the
+    platform never 429s a healthy service into a restart loop. A limit
+    of 0 disables the middleware. X-Forwarded-For is honored but
+    spoofable — hence backstop, not boundary.
+    """
+    if request.url.path in ("/health", "/ready"):
+        return await call_next(request)
+    limit = _rate_limit_per_min()
+    if limit > 0:
+        fwd = request.headers.get("x-forwarded-for", "")
+        ip = ((fwd.split(",")[0].strip() if fwd else "")
+              or (request.client.host if request.client else "unknown"))
+        now_min = int(time.time() // 60)
+        bucket = _RATE_BUCKETS.get(ip)
+        if bucket is None or bucket[0] != now_min:
+            bucket = [now_min, 0]
+            _RATE_BUCKETS[ip] = bucket
+            if len(_RATE_BUCKETS) > _RATE_CAP_IPS:
+                _RATE_BUCKETS.pop(next(iter(_RATE_BUCKETS)))
+        bucket[1] += 1
+        if bucket[1] > limit:
+            return JSONResponse({"detail": "rate limit exceeded"},
+                                status_code=429,
+                                headers={"Retry-After": "60"})
+    return await call_next(request)
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
