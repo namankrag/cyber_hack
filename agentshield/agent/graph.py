@@ -1,5 +1,10 @@
 """LangGraph orchestration over the frozen enforcement core.
 
+Named product roles (plain names, no buzzwords):
+- retriever: `retrieve` node — fetches UNTRUSTED chunks, cites doc_ids.
+- gatekeeper: `decide` + `gate` nodes — policy verdict, human approval pause.
+- reporter: `finalize` node — outcome only; enforcement already happened.
+
 Nodes: retrieve -> decide -> gate -> finalize. The graph never reimplements
 policy: `decide` calls shield.check(); `gate` pauses on REQUIRE_APPROVAL via
 interrupt(); `finalize` only reports. Provenance comes from the harness via

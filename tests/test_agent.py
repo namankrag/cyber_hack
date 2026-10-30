@@ -80,6 +80,7 @@ def test_graph_denies_poisoned_exfil(tmp_path):
                    {"configurable": {"thread_id": "t-deny"}})
     assert out["decision"] == "deny"
     assert out["outcome"] == "denied"
+    assert out["chunks"] and all(c["doc_id"] for c in out["chunks"])
 
 
 def test_graph_holds_legit_email_for_approval(tmp_path):

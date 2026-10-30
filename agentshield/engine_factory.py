@@ -18,6 +18,7 @@ from .config import Config
 from .detection.base import build_detectors
 from .models import Decision, EnforcementResult, PolicyReason, ToolCall
 from .policy import PolicyEngine, load_policy
+from .policy.integrity import verify_policy_digest
 
 
 class AgentShield:
@@ -27,6 +28,7 @@ class AgentShield:
                  enforce: bool | None = None) -> None:
         self.config = config or Config.from_env()
         self.policy = load_policy(self.config.policy_path)
+        verify_policy_digest(self.config.policy_path)
         self.detectors = build_detectors(self.config)
         self.engine = PolicyEngine(self.policy, self.detectors)
         self.audit = AuditLog(self.config.audit_path,

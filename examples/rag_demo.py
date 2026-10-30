@@ -52,6 +52,7 @@ def main() -> None:
     print(out["decision"], "|", out["outcome"])
     for r in out["reasons"]:
         print("  -", r)
+    print("grounded in:", [c["doc_id"] for c in out.get("chunks", [])])
 
     beat("3. legit email (user) -> HELD, human approves -> HUMAN-APPROVED")
     cfg = {"configurable": {"thread_id": "demo-3"}}
@@ -89,6 +90,7 @@ def main() -> None:
     print(out["decision"], "|", out["outcome"], f"| {ms:.0f}ms")
     for r in out["reasons"][:2]:
         print("  -", r)
+    print("grounded in:", [c["doc_id"] for c in out.get("chunks", [])])
 
     beat("6. verdicts above are all logged with reasons (audit trail)")
     print("demo complete: allowed + approved + 3 denies + 1 hold — inspectable end to end")

@@ -6,10 +6,17 @@ and, crucially, it runs in microseconds so it can sit inline on every single
 tool call. The LLM detector (llm_detector.py) layers on top for the subtle
 cases. Each matched pattern contributes a weighted signal; the score is the
 saturating sum, so multiple weak hits still add up to a strong verdict.
+
+Normalization: before matching, a folded copy of the input is also scanned
+(NFKC, zero-width/format characters stripped, separators folded to spaces).
+This catches hyphen/colon-split and invisible-character smuggling
+("ignore-previous-instructions", "igno\\u200bRE previous"). Matches union by
+label, so normalization never double-counts a signal.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from ..models import DetectionResult, ToolCall
 from .base import Detector
@@ -55,6 +62,19 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
      0.5, "secrecy Hindi/Kannada ('kisi ko mat batao', 'yaarigu helabedi')"),
 ]
 
+# Invisible/format characters (zero-width spaces, bidi overrides, BOM, soft
+# hyphen) that smuggle instructions past naive matching.
+_FORMAT_CHARS = re.compile("[\u200b-\u200f\u202a-\u202e\ufeff\u00ad\u2060-\u2064]")
+_SEPARATORS = re.compile(r"[-_–—/:;,.!?*|~^`#]+")
+
+
+def normalize_text(text: str) -> str:
+    """Fold smuggling tricks to their plain form (additive: raw is also scanned)."""
+    folded = unicodedata.normalize("NFKC", text)
+    folded = _FORMAT_CHARS.sub("", folded)
+    folded = _SEPARATORS.sub(" ", folded)
+    return re.sub(r"\s+", " ", folded).strip()
+
 
 class HeuristicDetector(Detector):
     name = "heuristic"
@@ -64,22 +84,22 @@ class HeuristicDetector(Detector):
 
     def scan(self, call: ToolCall) -> DetectionResult:
         # Scan both the surrounding context and the literal argument values —
-        # an injection can hide in either place.
+        # an injection can hide in either place. Each surface is scanned raw
+        # and normalized; matches union by label so nothing double-counts.
         haystack = call.context + "\n" + _stringify_args(call.arguments)
 
-        score = 0.0
-        signals: list[str] = []
-        for pattern, weight, label in _PATTERNS:
-            if pattern.search(haystack):
-                score += weight
-                signals.append(label)
+        matched: dict[str, float] = {}
+        for text in (haystack, normalize_text(haystack)):
+            for pattern, weight, label in _PATTERNS:
+                if label not in matched and pattern.search(text):
+                    matched[label] = weight
 
-        score = min(score, 1.0)  # saturate
+        score = min(sum(matched.values()), 1.0)  # saturate
         return DetectionResult(
             detector=self.name,
             score=round(score, 3),
             is_threat=score >= self.threshold,
-            signals=signals,
+            signals=list(matched),
         )
 
 
