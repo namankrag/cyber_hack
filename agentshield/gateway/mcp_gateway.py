@@ -30,14 +30,28 @@ The middleware strips that tag before the real tool sees the arguments. An
 asserted source with no valid token resolves to UNTRUSTED (fail-closed), so a
 tag placed by the agent or by injected content cannot elevate trust.
 
-SCOPE NOTE: this gateway registers a set of built-in DEMO tools so the
-enforcement is visible end to end. It does not yet proxy an arbitrary upstream
-MCP server — wrapping a real upstream (forwarding list_tools/call_tool through
-the same middleware) is the documented next step. The enforcement model is
-identical for real tools.
+DROP-IN PROXY: point the gateway at any MCP server speaking stdio and it
+fronts that upstream — tools are listed from the upstream at startup and every
+upstream `tools/call` passes through the same EnforcementMiddleware (tag
+strip, manifest verify, shield.check, audit). Configure with:
+
+    AGENTSHIELD_UPSTREAM_CMD="python examples/upstream_demo_server.py"
+    AGENTSHIELD_UPSTREAM_ARGS="--extra-flag"   # optional, appended
+
+so adoption is "change one line in your MCP client config": point the client
+at the gateway instead of the upstream directly. With no upstream configured
+the gateway falls back to the built-in DEMO tools below (unchanged).
 """
 from __future__ import annotations
 
+import asyncio
+import atexit
+import concurrent.futures
+import dataclasses
+import os
+import re
+import shlex
+import threading
 from typing import Any
 
 import mcp.types as mcp_types
@@ -51,9 +65,19 @@ from ..provenance import resolve
 
 _TAG = "_agentshield"
 
+#: Env var holding the upstream MCP server command (shlex-split). Unset or
+#: blank means "no upstream": the gateway serves the built-in demo tools.
+UPSTREAM_CMD_ENV = "AGENTSHIELD_UPSTREAM_CMD"
+#: Env var holding extra upstream args, appended after the command (shlex-split).
+UPSTREAM_ARGS_ENV = "AGENTSHIELD_UPSTREAM_ARGS"
+#: Env var bounding one upstream round-trip (list or call), in seconds.
+UPSTREAM_TIMEOUT_ENV = "AGENTSHIELD_UPSTREAM_TIMEOUT_S"
+#: Startup + per-call budget when the env var is absent or malformed.
+DEFAULT_UPSTREAM_TIMEOUT_S = 30.0
+
 
 def _deny(shield: AgentShield, call: ToolCall, rule: str,
-            detail: str) -> mcp_types.CallToolResult:
+          detail: str) -> mcp_types.CallToolResult:
     """Audit a DENY and render it as an inspectable MCP error result."""
     shield.audit.record(EnforcementResult(
         call=call, decision=Decision.DENY,
@@ -69,6 +93,323 @@ def _deny(shield: AgentShield, call: ToolCall, rule: str,
     )
 
 
+def upstream_command_from_env(env: Any = None) -> list[str] | None:
+    """Upstream stdio command from AGENTSHIELD_UPSTREAM_CMD (+ _ARGS).
+
+    Returns None when unconfigured (gateway uses demo tools). shlex-split so
+    quoted program paths with spaces work on both POSIX and Windows.
+    """
+    src = os.environ if env is None else env
+    raw = (src.get(UPSTREAM_CMD_ENV) or "").strip()
+    if not raw:
+        return None
+    posix = os.name != "nt"
+    cmd = [_strip_quotes(t) for t in shlex.split(raw, posix=posix)]
+    extra = (src.get(UPSTREAM_ARGS_ENV) or "").strip()
+    if extra:
+        cmd.extend(_strip_quotes(t) for t in shlex.split(extra, posix=posix))
+    return cmd or None
+
+
+def _strip_quotes(token: str) -> str:
+    """Drop one layer of surrounding quotes (Windows keeps them literally)."""
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+        return token[1:-1]
+    return token
+
+
+def upstream_timeout_from_env(env: Any = None) -> float:
+    """Per-upstream-round-trip budget in seconds (floor 0.5s)."""
+    src = os.environ if env is None else env
+    try:
+        return max(0.5, float(src.get(UPSTREAM_TIMEOUT_ENV, "")
+                              or DEFAULT_UPSTREAM_TIMEOUT_S))
+    except ValueError:
+        return DEFAULT_UPSTREAM_TIMEOUT_S
+
+
+class UpstreamError(Exception):
+    """The upstream MCP server is unreachable or misbehaving."""
+
+
+class UpstreamProxy:
+    """Persistent stdio connection to one arbitrary upstream MCP server.
+
+    The subprocess is spawned once (from config) and driven from a dedicated
+    background thread running its own asyncio loop, so sync callers (FastAPI
+    workers, SDK tool threads) and async callers alike can use it: every
+    method blocks with a timeout and raises UpstreamError on failure.
+
+    Upstream failures are fail-closed by the caller (the middleware audits a
+    DENY and the proxy tool raises), never silently downgraded to demo tools.
+    """
+
+    def __init__(self, cmd: list[str], timeout_s: float = 30.0,
+                 cwd: str | None = None,
+                 env: dict[str, str] | None = None) -> None:
+        if not cmd:
+            raise UpstreamError("empty upstream command")
+        self._cmd = list(cmd)
+        self._timeout_s = float(timeout_s)
+        self._cwd = cwd
+        self._extra_env = dict(env) if env else None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._ready = threading.Event()
+        self._open_error: BaseException | None = None
+        self._session: Any = None
+        self._stack: Any = None
+        self._closed = False
+        self._thread = threading.Thread(
+            target=self._thread_main, name="agentshield-upstream",
+            daemon=True)
+        self._thread.start()
+        if not self._ready.wait(self._timeout_s + 5.0):
+            raise UpstreamError(
+                f"upstream did not start in time: {' '.join(self._cmd)}")
+        if self._open_error is not None:
+            raise UpstreamError(
+                f"cannot reach upstream {' '.join(self._cmd)}: "
+                f"{self._open_error}") from self._open_error
+        atexit.register(self.close)
+
+    # -- background thread ---------------------------------------------
+    def _thread_main(self) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._loop = loop
+        try:
+            loop.run_until_complete(self._open())
+        except BaseException as exc:  # fail fast: __init__ re-raises loudly
+            self._open_error = exc
+        finally:
+            self._ready.set()
+        if self._open_error is None:
+            loop.run_forever()
+            try:
+                loop.run_until_complete(self._aclose())
+            except BaseException:
+                pass
+        loop.close()
+
+    async def _open(self) -> None:
+        from contextlib import AsyncExitStack
+
+        from mcp.client.session import ClientSession
+        from mcp.client.stdio import StdioServerParameters, stdio_client
+
+        params = StdioServerParameters(
+            command=self._cmd[0], args=self._cmd[1:],
+            cwd=self._cwd, env=self._extra_env)
+        stack = AsyncExitStack()
+        self._stack = stack
+        try:
+            read, write = await stack.enter_async_context(stdio_client(params))
+            session = await stack.enter_async_context(
+                ClientSession(read, write))
+            await session.initialize()
+        except BaseException:
+            try:
+                await stack.aclose()
+            except BaseException:
+                pass
+            self._stack = None
+            raise
+        self._session = session
+
+    async def _aclose(self) -> None:
+        stack = self._stack
+        self._session, self._stack = None, None
+        try:
+            if stack is not None:
+                await stack.aclose()
+        except BaseException:
+            pass
+
+    # -- sync façade (any thread) ---------------------------------------
+    def _submit(self, coro_factory, what: str):
+        """Run a session coroutine on the proxy loop with a timeout."""
+        loop = self._loop
+        if self._closed or loop is None or not loop.is_running():
+            raise UpstreamError(f"upstream is closed ({what})")
+        coro = coro_factory()
+        try:
+            fut = asyncio.run_coroutine_threadsafe(coro, loop)
+        except RuntimeError as exc:
+            coro.close()
+            raise UpstreamError(
+                f"upstream not accepting calls ({what}): {exc}") from exc
+        try:
+            return fut.result(timeout=self._timeout_s)
+        except concurrent.futures.TimeoutError as exc:
+            raise UpstreamError(
+                f"upstream timed out after {self._timeout_s}s "
+                f"({what})") from exc
+        except UpstreamError:
+            raise
+        except Exception as exc:
+            raise UpstreamError(
+                f"upstream call failed ({what}): {exc}") from exc
+
+    def list_tools(self) -> list[Any]:
+        """Upstream tool list (SDK Tool objects). Raises UpstreamError."""
+        res = self._submit(lambda: self._session.list_tools(), "tools/list")
+        return list(res.tools or [])
+
+    def call_tool(self, name: str, arguments: dict | None) -> str:
+        """Forward one call; returns upstream text (error text passes through).
+
+        Transport/protocol failures raise UpstreamError (fail-closed). An
+        upstream tool's own domain error (is_error result) is NOT a gateway
+        failure: its text passes through transparently.
+        """
+        res = self._submit(
+            lambda: self._session.call_tool(str(name), dict(arguments or {})),
+            f"tools/call {name}")
+        texts = []
+        for block in res.content or []:
+            text = getattr(block, "text", None)
+            texts.append(text if isinstance(text, str)
+                         else f"<{type(block).__name__} non-text content omitted>")
+        body = "\n".join(texts).strip()
+        if getattr(res, "is_error", False):
+            return f"Upstream tool {name!r} reported an error:\n{body}"
+        return body
+
+    def close(self) -> None:
+        """Stop the loop and reap the upstream subprocess (idempotent)."""
+        if self._closed:
+            return
+        self._closed = True
+        loop, thread = self._loop, self._thread
+        try:
+            if loop is not None and loop.is_running():
+                loop.call_soon_threadsafe(loop.stop)
+        except RuntimeError:
+            pass
+        if (thread is not None and thread.is_alive()
+                and threading.current_thread() is not thread):
+            thread.join(timeout=10.0)
+
+
+# -- proxy tool synthesis -----------------------------------------------
+#: Marker embedded in the fail-closed error a proxy tool raises when the
+#: upstream dies. The SDK converts tool exceptions to is_error *results*
+#: inside call_next, so the middleware detects an upstream failure by this
+#: marker in the result text (single source of truth, same module).
+_UPSTREAM_FAILURE_MARKER = "[upstream_error]"
+
+
+def _result_text(res: Any) -> str:
+    """Best-effort text of a tool result (for failure classification).
+
+    The middleware layer sees raw JSON-RPC dicts
+    ({"content": [{"text": ...}], "isError": ...}); object forms are
+    accepted too so unit callers are not coupled to the transport shape.
+    """
+    content = res.get("content") if isinstance(res, dict) else getattr(res, "content", None)
+    parts = []
+    for block in content or []:
+        if isinstance(block, dict):
+            text = block.get("text")
+        else:
+            text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "\n".join(parts)
+
+
+def _result_is_error(res: Any) -> bool:
+    """True when a tool result (dict or object) carries is_error."""
+    if isinstance(res, dict):
+        return bool(res.get("isError") or res.get("is_error"))
+    return bool(getattr(res, "is_error", False))
+_JSON_TO_PY = {
+    "string": "str", "integer": "int", "number": "float",
+    "boolean": "bool", "array": "list", "object": "dict",
+}
+
+
+def _proxy_param_decls(input_schema: dict) -> tuple[str, list[tuple[str, str]]]:
+    """Signature source + [(json_name, py_name)] for an upstream schema.
+
+    Unknown/complex JSON types fall back to Any (validated but unconverted).
+    `_agentshield` is reserved for the provenance tag and never forwarded.
+    """
+    import keyword
+
+    schema = input_schema if isinstance(input_schema, dict) else {}
+    props = schema.get("properties") or {}
+    if not isinstance(props, dict):
+        props = {}
+    required = schema.get("required") or []
+    required = set(required) if isinstance(required, list) else set()
+    used: set[str] = set()
+    decls: list[str] = []
+    mapping: list[tuple[str, str]] = []
+    for raw in props:
+        base = re.sub(r"\W", "_", str(raw)) or "arg"
+        if re.match(r"^\d", base):
+            base = "_" + base
+        if keyword.iskeyword(base) or base == "_agentshield":
+            base += "_"
+        name = base
+        i = 2
+        while name in used:
+            name = f"{base}_{i}"
+            i += 1
+        used.add(name)
+        mapping.append((str(raw), name))
+        detail = props.get(raw) or {}
+        pytype = (_JSON_TO_PY.get(detail.get("type"), "Any")
+                  if isinstance(detail, dict) else "Any")
+        if str(raw) in required:
+            decls.append(f"{name}: {pytype}")
+        else:
+            decls.append(f"{name}: {pytype} = None")
+    return ", ".join(decls), mapping
+
+
+def _forward_upstream_call(tool_name: str, proxy: UpstreamProxy,
+                           arguments: dict) -> str:
+    """Forward one ALLOWED call; upstream failure raises fail-closed."""
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    clean = {k: v for k, v in (arguments or {}).items()
+             if v is not None and k != _TAG}
+    try:
+        return proxy.call_tool(tool_name, clean)
+    except UpstreamError as exc:
+        raise ToolError(
+            f"DENIED by AgentShield.\nTool: {tool_name}\n"
+            f"Decision: deny (fail-closed)\n"
+            f"Reasons:\n  - [upstream_error] upstream MCP server failed: {exc}"
+        ) from exc
+
+
+def _make_proxy_fn(tool_name: str, description: str,
+                   input_schema: dict, proxy: UpstreamProxy):
+    """Build a gateway tool function mirroring an upstream input schema.
+
+    The synthesized signature carries the upstream types so `list_tools`
+    advertises the real schema and the SDK validates arguments before the
+    forward. Optional args default to None and are dropped when unset, so
+    upstream defaults apply.
+    """
+    sig_src, mapping = _proxy_param_decls(input_schema)
+    keys = "{" + ", ".join(f"{raw!r}: {py}" for raw, py in mapping) + "}"
+    fn_name = re.sub(r"\W", "_", f"proxy_{tool_name}") or "proxy_tool"
+    src = (
+        f"def {fn_name}({sig_src}) -> str:\n"
+        f"    return _forward(_TOOL_NAME, _PROXY, {keys})\n"
+    )
+    namespace: dict[str, Any] = {"_forward": _forward_upstream_call,
+                                 "_TOOL_NAME": tool_name, "_PROXY": proxy}
+    exec(compile(src, f"<agentshield-proxy:{tool_name}>", "exec"), namespace)
+    fn = namespace[fn_name]
+    fn.__doc__ = description or f"Proxied upstream tool {tool_name}."
+    return fn
+
+
 class EnforcementMiddleware:
     """MCP ServerMiddleware: `(ctx, call_next) -> result`.
 
@@ -81,16 +422,37 @@ class EnforcementMiddleware:
     (live description+schema vs. the startup signature — catches
     rug-pull/tool-poisoning) and provenance resolution (replay/expiry/
     session-checked). Every denial is written to the audit log.
+
+    A tool that fails AFTER an ALLOW verdict is fail-closed too: the
+    client sees an error result and a DENY is audited (`upstream_error`
+    for proxied tools, `tool_error` otherwise).
     """
 
     def __init__(self, shield: AgentShield,
                  manifest: ToolManifest | None = None,
-                 tool_lookup=None) -> None:
+                 tool_lookup=None,
+                 proxied_tools: Any = None) -> None:
         self.shield = shield
         self.manifest = manifest
         # Callable mapping a tool name to its live registered tool object
         # (or None). Injected by build_gateway so tests can snapshot first.
         self._tool_lookup = tool_lookup
+        # Names of tools forwarded to an upstream server (fail-closed set).
+        self._proxied_tools = frozenset(proxied_tools or ())
+
+    def _audit_downstream_failure(self, call: ToolCall,
+                                  exc: Exception) -> None:
+        """Audit a crash on the way out of an ALLOW verdict (fail-closed)."""
+        rule = ("upstream_error"
+                if call.tool_name in self._proxied_tools
+                else "tool_error")
+        self.shield.audit.record(EnforcementResult(
+            call=call, decision=Decision.DENY,
+            reasons=[PolicyReason(
+                rule=rule, decision=Decision.DENY,
+                detail=(f"{call.tool_name} failed after ALLOW: "
+                        f"{type(exc).__name__}: {exc}"))],
+            fail_closed=True))
 
     async def __call__(self, ctx, call_next):  # noqa: ANN001 - SDK-typed context
         if ctx.method != "tools/call" or not ctx.params:
@@ -169,11 +531,34 @@ class EnforcementMiddleware:
 
         if result.decision is Decision.ALLOW:
             # Forward with the sanitized arguments (tag removed).
-            import dataclasses
-
             clean_params = dict(ctx.params)
             clean_params["arguments"] = arguments
-            return await call_next(dataclasses.replace(ctx, params=clean_params))
+            try:
+                res = await call_next(
+                    dataclasses.replace(ctx, params=clean_params))
+            except Exception as exc:
+                # A crash on the way out (transport/middleware bug — tool
+                # failures normally surface as is_error results, below).
+                self._audit_downstream_failure(call, exc)
+                raise
+            # Tool failures surface as is_error *results*: the SDK converts
+            # them inside the handler, so there is no exception to catch
+            # here. An upstream failure after ALLOW is fail-closed — audit
+            # the DENY so the trail stays complete. The proxy tool marks its
+            # fail-closed error with _UPSTREAM_FAILURE_MARKER; an upstream
+            # tool's own domain error (or an argument-validation error) has
+            # no marker and passes through as ordinary tool output.
+            if (call.tool_name in self._proxied_tools
+                    and _result_is_error(res)
+                    and _UPSTREAM_FAILURE_MARKER in _result_text(res)):
+                self.shield.audit.record(EnforcementResult(
+                    call=call, decision=Decision.DENY,
+                    reasons=[PolicyReason(
+                        rule="upstream_error", decision=Decision.DENY,
+                        detail=(f"{call.tool_name} failed after ALLOW: "
+                                f"{_result_text(res)}"))],
+                    fail_closed=True))
+            return res
 
         # Blocked: return a structured, inspectable error result. The agent
         # receives the verdict and the reasons — not a silent failure.
@@ -192,14 +577,8 @@ class EnforcementMiddleware:
         )
 
 
-def build_gateway(shield: AgentShield | None = None) -> MCPServer:
-    """Build an MCP server with AgentShield enforcement + demo tools.
-
-    The demo tools are intentionally "dangerous" so the enforcement is visible.
-    In production you'd register your real tools (or proxy an upstream MCP
-    server) — the middleware governs all of them identically.
-    """
-    shield = shield or AgentShield()
+def _build_demo_gateway(shield: AgentShield) -> MCPServer:
+    """Gateway serving the 5 built-in demo tools (no upstream configured)."""
     server = MCPServer(
         name="AgentShield-Gateway",
         instructions="All tool calls are enforced by AgentShield policy.",
@@ -244,6 +623,82 @@ def build_gateway(shield: AgentShield | None = None) -> MCPServer:
         0, EnforcementMiddleware(shield, manifest=manifest,
                                  tool_lookup=_live_tool_lookup(server)))
     return server
+
+
+def _build_proxy_gateway(shield: AgentShield, cmd: list[str],
+                         timeout_s: float | None) -> MCPServer:
+    """Gateway fronting an arbitrary upstream MCP server over stdio.
+
+    Spawns the upstream, lists its tools, and registers one forwarding tool
+    per upstream tool. A broken/unreachable upstream raises UpstreamError
+    (loud, fail-closed) — it NEVER silently falls back to demo tools.
+    """
+    timeout = (upstream_timeout_from_env() if timeout_s is None
+               else max(0.5, float(timeout_s)))
+    proxy = UpstreamProxy(cmd, timeout_s=timeout)
+    try:
+        upstream_tools = proxy.list_tools()
+    except UpstreamError:
+        proxy.close()
+        raise
+    server = MCPServer(
+        name="AgentShield-Gateway",
+        instructions=("AgentShield-protected proxy: every tool call is "
+                      "enforced by AgentShield policy before reaching upstream."),
+    )
+    for info in upstream_tools:
+        schema = getattr(info, "input_schema", None)
+        if schema is None:
+            schema = getattr(info, "inputSchema", None)
+        if not isinstance(schema, dict):
+            schema = {}
+        fn = _make_proxy_fn(info.name, info.description or "", schema, proxy)
+        server.add_tool(fn, name=info.name,
+                        description=info.description or "")
+    manifest = ToolManifest.from_tools(
+        {t.name: {"description": t.description or "",
+                  "schema": t.parameters or {}}
+         for t in server._tool_manager.list_tools()})
+    server.middleware.insert(
+        0, EnforcementMiddleware(
+            shield, manifest=manifest,
+            tool_lookup=_live_tool_lookup(server),
+            proxied_tools={t.name for t in server._tool_manager.list_tools()}))
+    # Lifecycle handle: tests, demos, and operators reap the upstream
+    # subprocess via close_gateway_proxy(server) (also atexit-guarded).
+    server._agentshield_upstream = proxy  # noqa: SLF001 - owned handle
+    return server
+
+
+def build_gateway(shield: AgentShield | None = None,
+                  upstream_cmd: list[str] | None = None,
+                  upstream_timeout_s: float | None = None) -> MCPServer:
+    """Build an MCP server with AgentShield enforcement.
+
+    Upstream mode (drop-in proxy): pass ``upstream_cmd`` explicitly or set
+    AGENTSHIELD_UPSTREAM_CMD (+ optional AGENTSHIELD_UPSTREAM_ARGS). The demo
+    tools are intentionally "dangerous" so the enforcement is visible.
+    In production you'd point at your real upstream MCP server — the
+    middleware governs all tools identically.
+    """
+    shield = shield or AgentShield()
+    cmd = (list(upstream_cmd) if upstream_cmd is not None
+           else upstream_command_from_env())
+    if cmd:
+        return _build_proxy_gateway(shield, cmd, upstream_timeout_s)
+    return _build_demo_gateway(shield)
+
+
+def close_gateway_proxy(server: MCPServer) -> bool:
+    """Reap the upstream subprocess behind a proxy gateway (idempotent).
+
+    Returns True when a proxy was attached, False for demo-mode gateways.
+    """
+    proxy = getattr(server, "_agentshield_upstream", None)
+    if proxy is None:
+        return False
+    proxy.close()
+    return True
 
 
 def _live_tool_lookup(server):
