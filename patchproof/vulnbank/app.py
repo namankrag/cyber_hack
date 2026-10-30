@@ -75,8 +75,13 @@ def _init_docs() -> str:
     base = tempfile.mkdtemp(prefix="vulnbank_")
     docs = os.path.join(base, "docs")
     os.makedirs(docs, exist_ok=True)
+    # A nested public file: confinement patches must keep subdirectories
+    # reachable (over-blocking pins), while "../" escapes stay rejected.
+    os.makedirs(os.path.join(docs, "sub"), exist_ok=True)
     pathlib.Path(docs, "welcome.txt").write_text(
         "Welcome to VulnBank. This document is public.\n")
+    pathlib.Path(docs, "sub", "note.txt").write_text(
+        "A nested note. This document is public.")
     # Lives OUTSIDE docs/ — must not be reachable via the /files endpoint.
     pathlib.Path(base, "vault_secret.txt").write_text(
         "SYNTHETIC_SECRET_DO_NOT_LEAK=hunter2\n")

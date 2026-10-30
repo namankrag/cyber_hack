@@ -102,6 +102,10 @@ class VerificationResult:
     patch_rationale: str = ""
     error: str | None = None
     verification_time_ms: float = 0.0
+    # Item-4 per-function line coverage of the patched copy, measured while
+    # the patched exploit + regression runs execute (fraction per function
+    # the patch touches; {} when coverage could not be measured).
+    coverage: dict[str, float] = field(default_factory=dict)
     # Item-3 variant gate: every corpus payload replayed against the patched
     # copy must be blocked. The first payload that still exploits names the
     # bypass (None when all blocked).

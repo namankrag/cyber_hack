@@ -147,44 +147,84 @@ def _probe_login(client, finding: Finding) -> list[CheckResult]:
                    json={"username": "alice", "password": "nope"})
     out.append(CheckResult("bad_password_rejected", _status(r) == 401,
                            f"status={_status(r)}"))
+    # Over-blocking pins: quirky-but-legitimate input must not crash the
+    # handler (a naive quote-stripping patch 500s here; parameterized SQL
+    # simply finds no such user).
+    for label, username in (("quote_in_username_no_crash", "o'brien"),
+                            ("unicode_username_no_crash", "Zoë")):
+        r = _http_post(client, f.route,
+                       json={"username": username, "password": "x"})
+        out.append(CheckResult(label, _status(r) in (200, 400, 401),
+                               f"status={_status(r)}"))
     return out
 
 
 def _probe_idor_owner(client, finding: Finding) -> list[CheckResult]:
     f = _shape(finding, "GET")
+    out: list[CheckResult] = []
     for oid in _IDOR_OBJECT_IDS:
         r = _http_get(client, _fill_route(f.route, oid),
                       headers=_AUTH_BEARER_1)
         if _status(r) == 200 and _json(r).get("owner_id") == 1:
-            return [CheckResult("owner_reads_own_account", True,
-                                f"status=200 id={oid}")]
-    return [CheckResult("owner_reads_own_account", False,
-                        "no self-owned object readable")]  # noqa: E501
+            out.append(CheckResult("owner_reads_own_account", True,
+                                   f"status=200 id={oid}"))
+            break
+    else:
+        out.append(CheckResult("owner_reads_own_account", False,
+                               "no self-owned object readable"))  # noqa: E501
+    # Over-blocking pin: the admin's legitimate cross-account access is
+    # exempt from the ownership check by design — a deny-all patch breaks it.
+    r = _http_get(client, _fill_route(f.route, 1002),
+                  headers={"Authorization": "Bearer 3"})
+    out.append(CheckResult("admin_reads_other_account",
+                           _status(r) == 200 and _json(r).get("owner_id") == 2,
+                           f"status={_status(r)}"))
+    return out
 
 
 def _probe_cmdi_legit(client, finding: Finding) -> list[CheckResult]:
     f = _shape(finding, "POST")
     param = f.param or "host"
-    r = _http_post(client, f.route, json={param: "127.0.0.1"},
-                   headers=_AUTH_BEARER_1)
-    return [CheckResult("legit_ping_works", _status(r) == 200,
-                        f"status={_status(r)}")]
+    out = []
+    for label, host in (("legit_ping_works", "127.0.0.1"),
+                        # Over-blocking pin: dotted hostnames are legitimate —
+                        # an over-strict character allowlist breaks them.
+                        ("legit_hostname_with_dots_works", "example.com")):
+        r = _http_post(client, f.route, json={param: host},
+                       headers=_AUTH_BEARER_1)
+        out.append(CheckResult(label, _status(r) == 200,
+                               f"status={_status(r)}"))
+    return out
 
 
 def _probe_traversal_legit(client, finding: Finding) -> list[CheckResult]:
     f = _shape(finding, "GET")
     param = f.param or "name"
-    r = _http_get(client, f.route, params={param: "welcome.txt"})
-    ok = _status(r) == 200 and "public" in (_json(r).get("content", ""))
-    return [CheckResult("public_file_readable", ok, f"status={_status(r)}")]
+    out = []
+    for label, name in (("public_file_readable", "welcome.txt"),
+                        # Over-blocking pin: nested public files must stay
+                        # reachable — a patch that blocks "/" over-blocks.
+                        ("nested_public_file_readable", "sub/note.txt")):
+        r = _http_get(client, f.route, params={param: name})
+        ok = _status(r) == 200 and "public" in (_json(r).get("content", ""))
+        out.append(CheckResult(label, ok, f"status={_status(r)}"))
+    return out
 
 
 def _probe_xss_legit(client, finding: Finding) -> list[CheckResult]:
     f = _shape(finding, "GET")
     param = f.param or "name"
-    r = _http_get(client, f.route, params={param: "Alice"})
-    ok = _status(r) == 200 and "Hello Alice" in _text(r)
-    return [CheckResult("greet_works", ok, f"status={_status(r)}")]
+    out = []
+    # Over-blocking pins: escaping must preserve legitimate content —
+    # unicode names pass through unchanged, empty input still greets.
+    for label, name, needle in (("greet_works", "Alice", "Hello Alice"),
+                                ("unicode_greeting_preserved", "Zoë",
+                                 "Hello Zoë"),
+                                ("empty_greeting_works", "", "Hello ")):
+        r = _http_get(client, f.route, params={param: name})
+        out.append(CheckResult(label, _status(r) == 200 and needle in _text(r),
+                               f"status={_status(r)}"))
+    return out
 
 
 def _probe_pickle_legit(client, finding: Finding) -> list[CheckResult]:
@@ -198,16 +238,26 @@ def _probe_pickle_legit(client, finding: Finding) -> list[CheckResult]:
     results.append(CheckResult("malformed_import_rejected",
                                _status(r) in (400, 422),
                                f"status={_status(r)}"))
+    # ShopAPI legit equivalent: an empty items document imports cleanly.
+    r = _http_post(client, f.route, json={"data": {"items": []}})
+    data = _json(r)
+    results.append(CheckResult("empty_import_works",
+                               _status(r) == 200 and data.get("imported") == 0,
+                               f"status={_status(r)}"))
     return results
 
 
 def _probe_secret_denied(client, finding: Finding) -> list[CheckResult]:
     f = _shape(finding, "GET")
     param = f.param or "api_key"
-    r = _http_get(client, f.route, params={param: "wrong-key"})
-    return [CheckResult("admin_denied_without_key",
-                        _status(r) in (401, 403),
-                        f"status={_status(r)}")]
+    out = []
+    # ShopAPI legit equivalent: an empty key is denied, not accepted.
+    for label, key in (("admin_denied_without_key", "wrong-key"),
+                       ("empty_key_denied", "")):
+        r = _http_get(client, f.route, params={param: key})
+        out.append(CheckResult(label, _status(r) in (401, 403),
+                               f"status={_status(r)}"))
+    return out
 
 
 #: Regression probes per CWE. A fixture runs the generic health probe plus the
