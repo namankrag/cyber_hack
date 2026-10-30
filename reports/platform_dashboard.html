@@ -74,7 +74,7 @@
       </div>
       <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:104</code></div>
       <div class="detail">Use a parameterized query so user input is bound as data, never parsed as SQL. Closes CWE-89 without changing behaviour for legitimate credentials.</div>
-      <div class="evidence">POST /login {&#x27;username&#x27;: &quot;admin&#x27; --&quot;, &#x27;password&#x27;: &#x27;wrong-on-purpose&#x27;} -&gt; 200 {&#x27;role&#x27;: &#x27;admin&#x27;, &#x27;token&#x27;: &#x27;3&#x27;}. Authenticated as admin without the password.</div>
+      <div class="evidence">POST /login {username: &quot;admin&#x27; --&quot;} -&gt; 200 {&#x27;role&#x27;: &#x27;admin&#x27;, &#x27;token&#x27;: &#x27;3&#x27;}. Authenticated as admin without the password.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
     </div>
     <div class="card">
@@ -84,7 +84,7 @@
       </div>
       <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:136</code></div>
       <div class="detail">Reject non-hostname input and call ping via an argument list (no shell), so metacharacters cannot start a new command. Closes CWE-78; legitimate hostnames still work. Verified portably: the echo runs through the Python interpreter (no echo binary needed), still with no shell and allow-listed input.</div>
-      <div class="evidence">POST /ping {&#x27;host&#x27;: &#x27;127.0.0.1; echo PWNED_BY_PATCHPROOF&#x27;} -&gt; injected command executed (output contained the marker).</div>
+      <div class="evidence">POST /ping {host: &#x27;127.0.0.1; echo PWNED_BY_PATCHPROOF&#x27;} -&gt; injected command executed (output contained the marker).</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
     </div>
     <div class="card">
@@ -94,7 +94,7 @@
       </div>
       <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:112</code></div>
       <div class="detail">Enforce that the account&#x27;s owner_id matches the authenticated caller (admins exempt). Closes CWE-639; owners still read their own accounts unchanged.</div>
-      <div class="evidence">GET /accounts/1002 as user 1 -&gt; 200 {&#x27;balance&#x27;: 15750, &#x27;id&#x27;: 1002, &#x27;note&#x27;: &#x27;Bob savings&#x27;, &#x27;owner_id&#x27;: 2}. Read another users account.</div>
+      <div class="evidence">GET /accounts/&lt;int:account_id&gt; as user 1 -&gt; id 1002 owned by 2. Read another users object.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
     </div>
     <div class="card">

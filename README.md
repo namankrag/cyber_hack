@@ -63,6 +63,7 @@ python -m pytest -q
 
 # Start the gateway API
 uvicorn agentshield.gateway.app:app --reload
+#   dashboard: GET http://127.0.0.1:8000/ (live demo dashboard)
 #   health:   GET  http://127.0.0.1:8000/health
 #   check:    POST http://127.0.0.1:8000/v1/check
 #   audit:    GET  http://127.0.0.1:8000/v1/audit
@@ -206,7 +207,7 @@ policy engine, fail-closed logic, audit log (redacted), **MCP gateway
 (protocol-layer enforcement)**, `guard` PEP (sync + async),
 trusted-provenance resolution, auth-gated HTTP gateway (+ split admin key),
 RAG + LangGraph agent with human-in-the-loop, HTTP + MCP + RAG demos,
-test suite (**81 passing**, incl. security-boundary and red-team
+test suite (**178 passing + 1 skipped**, incl. security-boundary and red-team
 regression tests), Semgrep gate (238 rules, 0 findings).
 
 Next: LLM detector wired to a live key (Gemini/Groq); session/nonce-bound
@@ -228,7 +229,7 @@ Parallax PS-01 AgentShield. Muse branch head: red-loop hardened tree —
 - `provenance.py:29-126`: trusted_scope + HMAC mint/verify + insecure dev-mode fail-closed. Tokens bind source only, replayable by design (planned session/nonce/expiry).
 - `enforce.py:34-79`: guard/enforced PEP raises before body. `/v1/check` is advisory PDP.
 - `audit/log.py:28-98`: append-only JSONL, exact lowercased-key redaction, tail block 8192, limit <= 500.
-- `gateway/app.py:31-118`: GET /health, /ready (503 unless loaded), POST /v1/check, GET /v1/audit, require_api_key. App 0.2.0 (note `__init__.py:8` still 0.1.0).
+- `gateway/app.py:31-118`: GET /health, /ready (503 unless loaded), POST /v1/check, GET /v1/audit, require_api_key. App 0.2.0 (`__init__.py` 0.2.0 matches).
 - `gateway/mcp_gateway.py:50-146`: EnforcementMiddleware, demo tools only (SCOPE NOTE 30-34). `_agentshield` tag stripped pre-tool.
 - `policies/default.yaml:1-51` = packaged `data/default_policy.yaml`.
 - Stack: fastapi>=0.115 uvicorn[standard]>=0.30 pydantic>=2.7 pyyaml>=6.0.1 rich>=13.7 mcp>=2.0 google-genai>=0.3.0 pytest>=8 httpx>=0.27. Python >=3.11.
@@ -315,14 +316,14 @@ secureai loop --max-iters 8 --report reports/loop_report.json
 
 # Evaluation: 8/8 gates PASSED at threshold 0.5; threshold tune search
 secureai eval --once --out-dir reports
-secureai eval --tune --out-dir reports
+secureai eval --tune --out-dir reports/tuned
 ```
 
 Artifacts: `reports/platform_dashboard.html`, `reports/loop_report.json`,
 `reports/scorecard.json` + `reports/scorecard.html`, and
 `reports/tuned/scorecard.json` + `scorecard.html`.
 
-Validate with one root run: `pytest -q` -> **127 passed, 1 skipped** (the
+Validate with one root run: `pytest -q` -> **178 passed, 1 skipped** (the
 skip is the Semgrep-engine test; Semgrep is not installed, so the platform
 uses its graceful AST fallback).
 

@@ -15,7 +15,7 @@ Gaps are listed at the end. No live deploy URLs exist yet.
 - `provenance.py:29-126`: trusted_scope contextvars + HMAC mint/verify + insecure_dev_mode fail-closed. Token = HMAC(source) only — replayable, planned fix session/nonce/expiry.
 - `enforce.py:34-79`: guard()/enforced() PEP raises before body. Contrast advisory PDP.
 - `audit/log.py:28-98`: JSONL append, redact_keys exact lowercased match, tail-from-end block 8192, limit<=500, marker `«redacted»`.
-- `gateway/app.py:31-118`: FastAPI GET /health, /ready (503 unless loaded), POST /v1/check CheckRequest/CheckResponse 51-70, GET /v1/audit, require_api_key. Version 0.2.0 (note `__init__.py:8` still 0.1.0).
+- `gateway/app.py:31-118`: FastAPI GET /health, /ready (503 unless loaded), POST /v1/check CheckRequest/CheckResponse 51-70, GET /v1/audit, require_api_key. Version 0.2.0 (`__init__.py` 0.2.0 matches).
 - `gateway/mcp_gateway.py:50-146`: EnforcementMiddleware, build_gateway demo tools only (SCOPE NOTE 30-34). Tag `_agentshield` {source,token,context} stripped pre-tool.
 - `detection/heuristic.py:21-73`, `detection/base.py:24-50` lazy imports, `detection/llm_detector.py:42-133`, `config.py:48-104` from_env + strict validation, `engine_factory.py:15-29` check(), `policy/loader.py:11-18`.
 - `policies/default.yaml:1-51` = `data/default_policy.yaml` identical wheel copy.

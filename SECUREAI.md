@@ -57,18 +57,18 @@ python -m secureai runtime                # AgentShield scenarios
 python -m secureai harden                 # PatchProof over the governed tools
 
 # Closed remediation loop: block → bridge scan → patch → verify → re-attack
-secureai loop --max-iters 8 --report loop_report.json
+secureai loop --max-iters 8 --report reports/loop_report.json
 
 # One evaluation pass or a bounded decision-threshold search
 secureai eval --once --out-dir reports
-secureai eval --tune --out-dir reports
+secureai eval --tune --out-dir reports/tuned
 
 # Re-evaluate when the bundled practice tool changes
 secureai watch --interval 1 --out-dir reports
 
 # Tests - one suite from the repo root (collects tests/ + patchproof/tests/)
 pytest -q
-# -> 127 passed, 1 skipped (the skip is the Semgrep-engine test;
+# -> 178 passed, 1 skipped (the skip is the Semgrep-engine test;
 #    Semgrep is not installed, so the platform uses its graceful AST fallback)
 ```
 

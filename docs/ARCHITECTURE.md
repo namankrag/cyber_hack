@@ -3,7 +3,7 @@
 One system, three front doors, one decision brain. This doc is the map:
 how a tool call flows, which component owns each guarantee, and how to run
 everything. Code references are exact; behavior claims are test-pinned
-(`pytest tests -q` → 81 passed).
+(`pytest tests -q` → 145 passed).
 
 ## The one idea
 
@@ -113,7 +113,7 @@ the point of use.
 ```bash
 cd cyber_hack
 python -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m pytest tests -q                      # 81 passed
+.venv\Scripts\python.exe -m pytest tests -q                      # 145 passed
 $env:PYTHONPATH='.'; .venv\Scripts\python.exe -m examples.rag_demo  # 6 beats
 powershell -ExecutionPolicy Bypass -File scripts/semgrep_gate.ps1  # 238 rules, 0 findings
 uvicorn agentshield.gateway.app:app --host 0.0.0.0 --port ${PORT:-8000}
