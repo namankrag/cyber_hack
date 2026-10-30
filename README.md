@@ -52,7 +52,9 @@ python -m pytest -q
 # New stack notes (muse branch): requirements now include chromadb +
 # langgraph (pip install takes a few minutes; first RAG run downloads the
 # ~80MB ONNX embedding model once). New demos: python -m examples.rag_demo
-# (RAG + graph, 5 beats). Semgrep lives OUTSIDE .venv (it pins mcp==1.29.0):
+# (RAG + graph, 6 beats). Full map: docs/ARCHITECTURE.md. Red-team evidence:
+# docs/RED_LOOP_REPORT.md + docs/red_loop_ledger.csv (Excel-readable).
+# Semgrep lives OUTSIDE .venv (it pins mcp==1.29.0):
 # powershell -ExecutionPolicy Bypass -File scripts/semgrep_gate.ps1
 
 # Start the gateway API
@@ -112,6 +114,10 @@ curl -s http://127.0.0.1:8000/v1/check -H 'content-type: application/json' -d '{
 | HTTP gateway | `agentshield/gateway/app.py` | FastAPI enforcement endpoint |
 | **MCP gateway** | `agentshield/gateway/mcp_gateway.py` | **protocol-layer enforcement via the official MCP SDK** |
 | Demo | `examples/` | mock agent, HTTP + MCP demos |
+| RAG + agent | `agentshield/rag/`, `agentshield/agent/` | 14-doc UNTRUSTED Chroma corpus, LangGraph retrieve → decide → gate → finalize |
+| Approval | `agentshield/approval/` | single-use hash-bound approvals over the audit log |
+| Provenance + trust root | `agentshield/provenance.py`, `agentshield/policy/integrity.py` | `trusted_scope`/HMAC tokens, pinned SHA-256 policy digest |
+| PEP guard | `agentshield/enforce.py` | `guard`/`enforced` (sync + async), unavoidable execution path |
 
 ### MCP gateway — enforcement at the protocol layer
 
@@ -167,27 +173,37 @@ Hardened after a code review. Key properties:
   harness via an in-process `trusted_scope` or an HMAC token minted from
   `AGENTSHIELD_HARNESS_SECRET` — never from the request/tool-call payload. A
   `source` claim without a valid token resolves to **UNTRUSTED**. Without a
-  secret set, the gateway runs in *insecure dev mode* (flagged in `/health`).
+  secret set, the gateway runs in *insecure dev mode* (flagged in the
+  key-gated `/v1/evidence`).
 - **Enforcement is unavoidable at the execution path.** `/v1/check` is an
   advisory *decision* point; the real *enforcement* point is the `guard`
   wrapper (`agentshield.enforce`) and the MCP middleware, which run a tool only
   on ALLOW and raise otherwise.
 - **Auth + bounds.** Set `AGENTSHIELD_API_KEY` to require a key on every HTTP
-  endpoint, including `/v1/audit`; the audit `limit` is bounded.
+  endpoint, including `/v1/audit` and `/v1/evidence`; set
+  `AGENTSHIELD_ADMIN_KEY` so a leaked read key cannot flip `/v1/admin/*`. The
+  audit `limit` is bounded; `/health` is liveness-only (no policy/tool/dev
+  details).
 - **Strict config/policy.** Empty/unknown detectors, out-of-range thresholds,
   unknown sensitivities, and typo'd policy keys fail at startup, not silently.
-- **Audit redaction.** Sensitive argument keys are redacted before writing;
-  `tail()` reads from the end of the file.
+- **Audit redaction.** Sensitive keys (normalized, fragments, provider token
+  shapes, JSON blobs) are redacted before writing; `tail()` reads from the end.
+- **Approvals are single-use; verdicts are pinned.** One human click authorizes
+  one execution; checkpoint decision-flips are vetoed against a
+  process-local verdict registry.
 
 See [`THREAT_MODEL.md`](THREAT_MODEL.md) for what this does and does **not**
 protect against. Prompt-injection detection is defense in depth, not a guarantee.
 
 ## Status
 
-Working: domain model, heuristic detection, policy engine, fail-closed logic,
-audit log (redacted), **MCP gateway (protocol-layer enforcement)**, `guard`
-PEP, trusted-provenance resolution, auth-gated HTTP gateway, HTTP + MCP demos,
-test suite (**26 passing**, incl. security-boundary tests).
+Working: domain model, heuristic detection (EN + Hindi/Kannada/Tamil/Telugu),
+policy engine, fail-closed logic, audit log (redacted), **MCP gateway
+(protocol-layer enforcement)**, `guard` PEP (sync + async),
+trusted-provenance resolution, auth-gated HTTP gateway (+ split admin key),
+RAG + LangGraph agent with human-in-the-loop, HTTP + MCP + RAG demos,
+test suite (**81 passing**, incl. security-boundary and red-team
+regression tests), Semgrep gate (238 rules, 0 findings).
 
 Next: LLM detector wired to a live key (Gemini/Groq); session/nonce-bound
 provenance tokens; upstream MCP proxy passthrough; approval-queue dashboard.
@@ -196,8 +212,10 @@ provenance tokens; upstream MCP proxy passthrough; approval-queue dashboard.
 
 ## Full reference (muse branch)
 
-Parallax PS-01 AgentShield. Commit `ea64345` (`security: harden enforcement boundary (v0.2)`).
-Suite: 22 collected here, 26 claimed (4 MCP need `mcp` pkg). Timeline: Fri 4:50PM countdown to Sat 2PM submit (URL + hash + 2-line pitch).
+Parallax PS-01 AgentShield. Muse branch head: red-loop hardened tree —
+`pytest tests -q` → 81 passed, Semgrep 238 rules / 0 findings,
+`examples.rag_demo` → 6 beats live. Timeline: Fri 4:50PM countdown to Sat
+2PM submit (URL + hash + 2-line pitch).
 
 ### Frozen core (do not fork)
 
@@ -217,11 +235,18 @@ Suite: 22 collected here, 26 claimed (4 MCP need `mcp` pkg). Timeline: Fri 4:50P
 Heuristic `heuristic.py:21-46`, 11 weights: 0.6 override-ignore, 0.6 disregard, 0.35 persona, 0.5 new-system-prompt, 0.7 exfil-secret, 0.45 egress-send, 0.55 bulk-egress, 0.5 secrecy, 0.45 fake-delimiter, 0.4 authority, 0.35 obfuscated triple-repeat. Threshold 0.5, saturating sum min(score,1.0)+round3. Haystack = full context + stringified args, no truncation. All 11 re.I English-only, so non-English passes heuristic and depends on the LLM layer.
 LLM `llm_detector.py:42-133`: gemini default `gemini-2.0-flash`, groq default `llama-3.1-8b-instant`, strict JSON + range check, timeout 8.0s via ThreadPoolExecutor, truncation context[:6000] + args[:2000]. Missing key, unknown provider, and unparseable output all return error results. Engine escalates fail_closed_on_detector_error=True to REQUIRE_APPROVAL. Sends context+args to third party by design. `build_detectors` does not forward model override.
 
-### RAG + agent plan (to build)
+### RAG + agent (shipped, see docs/ARCHITECTURE.md)
 
-Local Chroma, 12-doc poisoned corpus, every record tagged UNTRUSTED. Always query `where={'trust':'UNTRUSTED'}` plus `where_document` pre-filters. Default embedding all-MiniLM-L6-v2 runs locally. Keep Cloud out for this corpus.
-LangGraph StateGraph: retrieve (Chroma `read_rag_docs`, low sensitivity) → detect → policy engine → `interrupt()` approval gate before ALLOW → guard PEP → audit node. SqliteSaver dev, PostgresSaver prod, thread_id per demo run.
-Retrieved chunks stay UNTRUSTED and must pass heuristic/LLM scan. Never trust retriever output.
+Local Chroma, 14-doc poisoned corpus (6 benign EN + EN vendor/lottery/encoded
++ Hindi/Kannada/Tamil/Telugu UPI lures), every record tagged UNTRUSTED.
+Always query `where={'trust':'UNTRUSTED'}`. Default embedding
+all-MiniLM-L6-v2 runs locally. Keep Cloud out for this corpus.
+LangGraph StateGraph: retrieve (Chroma `read_rag_docs`, low sensitivity) →
+detect → policy engine → `interrupt()` approval gate before ALLOW → guard
+PEP → audit node, with a process-local verdict registry that vetoes
+checkpoint decision-flips. SqliteSaver dev, PostgresSaver prod, thread_id per
+demo run. Retrieved chunks stay UNTRUSTED and must pass heuristic/LLM scan.
+Never trust retriever output.
 
 ### PS-02 borrow (proof discipline)
 
@@ -234,10 +259,16 @@ Bind 0.0.0.0. `/health` liveness, `/ready` readiness.
 Render: `uvicorn agentshield.gateway.app:app --host 0.0.0.0 --port $PORT`, healthCheckPath /health, secrets in dashboard env, ephemeral FS.
 Fly: `fly launch` Dockerfile + fly.toml, internal_port == uvicorn port, http_checks /health, `fly secrets set`, volumes for persistence.
 HF Docker Spaces: sdk docker README YAML, app_port 7860, UID 1000, secrets as env, 50GB ephemeral, /data paid persistent.
-Proposed (not yet in `app.py`): `AGENTSHIELD_ENFORCE` OFF/ON + key-gated POST /v1/admin/enforce, POST /v1/admin/reset, GET /v1/evidence (health+ready, OFF/ON pair, redacted audit tail, pytest log, semgrep summary, URL/SHA/time). Fallback video 90-120s OFF-vs-ON.
+Shipped: `AGENTSHIELD_ENFORCE` OFF/ON + key-gated POST /v1/admin/enforce, POST /v1/admin/reset, GET /v1/evidence (health + enforced + provenance_dev_mode + redacted audit tail). `/v1/admin/*` additionally honors a split `AGENTSHIELD_ADMIN_KEY`. Fallback video 90-120s OFF-vs-ON.
 Pitch: AI agents get hijacked by any doc they read. AgentShield is the code boundary between agent and tools, every call allow/deny/approval with proof, so even a compromised model cannot leak.
 
-### Known gaps (code-verified)
+### Known gaps (code-verified; full ledger: docs/RED_LOOP_REPORT.md)
 
-HMAC replayable. Dev-mode honors claims, flagged in /health. Redaction exact-match only. No rotation/retention. REDACT_KEYS replaces defaults. Unknown tool holds, not DENY. No live deploy or OFF/ON endpoints yet. MCP 4 tests need `mcp` installed. Model currency (gemini-2.0-flash vs 2.5, groq defaults) and free quotas must be rechecked on demo day.
+HMAC replayable (roadmap: session/nonce/expiry). Dev-mode honors claims,
+flagged in `/v1/evidence`. No rotation/retention (operator-owned).
+Unknown tool holds, not DENY (fail-closed default). Paraphrased no-keyword
+injections need the LLM layer (no key in this build; contained: untrusted
+callers never touch high-sensitivity tools). Model currency
+(gemini-2.0-flash vs 2.5, groq defaults) and free quotas must be rechecked
+on demo day.
 

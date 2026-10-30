@@ -12,7 +12,7 @@ beat: HELD, human approves, done. Benign corpus docs all score zero (tested).
 **Bypasses?** Only by skipping the PEP — and the OFF-vs-ON beat proves the
 boundary is what stops the leak. Same poisoned call: OFF leaks, ON denies.
 
-**Multilingual?** Hindi/Kannada UPI lures are flagged (tested); paraphrase can
+**Multilingual?** Hindi/Kannada/Tamil/Telugu UPI lures are flagged (tested); paraphrase can
 still miss, and then the policy contains it — untrusted callers never touch
 high-sensitivity tools, and trusted callers with detected injections are denied.
 

@@ -97,7 +97,12 @@ _SEPARATORS = re.compile(
 
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 _INTRAWORD_SEP = re.compile(r"(?<=[A-Za-z0-9])[-_–—/:;,.!?*|~^`#\+=\(\)\[\]]+(?=[A-Za-z0-9])")
-_B64_BLOB = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
+# Floor is 20, not 40: padding (`=`/`==`) doesn't count toward `{40,}`,
+# so a real 40-char blob (38 payload chars + `==`) slipped past. A lower
+# floor is FP-safe: the decoded text must still match an injection pattern
+# before anything is flagged (see _scan_b64_blobs), so random hashes and
+# tokens just cost one failed decode, never a verdict.
+_B64_BLOB = re.compile(r"[A-Za-z0-9+/]{20,}={0,2}")
 
 # Cyrillic/Greek lookalikes NFKC does not fold (homoglyph smuggling).
 _HOMOGLYPHS = {

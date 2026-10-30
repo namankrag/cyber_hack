@@ -1,0 +1,51 @@
+ledger_id,wave_found,layer,location,severity,title,status,fixed_in,test,notes
+L01,1,heuristic,agentshield/detection/heuristic.py,HIGH,separator/punct fragmentation evades override,fixed,ef9dd3b,probe,separators folded + intra-word-separator removal surfaces
+L02,1,heuristic,agentshield/detection/heuristic.py,HIGH,hidden format chars evade scan,fixed,ef9dd3b,probe,extended Cf-class strip (U+2065-2069/FE00-FE0F/180B-180D/061C)
+L03,1,heuristic,agentshield/detection/heuristic.py,HIGH,Cyrillic homoglyph bypasses latin patterns,fixed,ef9dd3b,probe,homoglyph fold surface
+L04,1,heuristic,agentshield/detection/heuristic.py,HIGH,leetspeak digit bypass,fixed,ef9dd3b,probe,leet fold surface
+L05,1,heuristic,agentshield/detection/heuristic.py,HIGH,paraphrased no-keyword override allowed,accepted,,,needs semantic/LLM layer; contained: high-sensitivity tools deny untrusted callers regardless of detection
+L06,1,heuristic,agentshield/detection/heuristic.py,HIGH,HTML-comment token split evasion,fixed,ef9dd3b,probe,comment strip/space surfaces
+L07,1,heuristic,agentshield/detection/heuristic.py,HIGH,context/args field-split breaks adjacency,fixed,ef9dd3b,probe,glue-free values-only surface
+L08,1,heuristic,agentshield/detection/heuristic.py,HIGH,double-URL-encoding never decoded,fixed,ef9dd3b,probe,multi-round decode surfaces
+L08R,2,heuristic,agentshield/detection/heuristic.py,HIGH,triple-encoding survives 2-round decoder,fixed,a5a72d2,test_wave2 triple,fixpoint decode up to 5 rounds
+L09,1,heuristic,agentshield/detection/heuristic.py,HIGH,Tamil/Telugu transliterated UPI lure scores 0.0,fixed,a5a72d2,test_heuristic_i18n ta/te,ta/te override+secrecy patterns + 2 corpus docs
+L10,1,heuristic,agentshield/detection/heuristic.py,HIGH,single base64 blob misses counter,fixed,ef9dd3b,probe,blob decode-and-scan surface
+L10R,2,heuristic,agentshield/detection/heuristic.py,HIGH,short padded blob + HTML entities miss,fixed,a5a72d2,test_wave2 blob+entity,floor 40->20 (padding excluded from count); html.unescape surface
+L11,1,heuristic,agentshield/detection/heuristic.py,HIGH,fake role tags + root/dev-mode claims,fixed,ef9dd3b,probe,generic role-tag + authority patterns
+L12,1,heuristic,agentshield/detection/heuristic.py,HIGH,secrecy misses contractions and paraphrase,fixed,ef9dd3b,probe,extended secrecy patterns
+L13,1,heuristic,agentshield/detection/heuristic.py,HIGH,singular forward/post + bare-lure egress,fixed,ef9dd3b,probe,extended exfil verbs
+L14,1,provenance,agentshield/provenance.py,HIGH,dev-mode honors forged source,by-design,,,insecure dev mode flagged in /v1/evidence; set AGENTSHIELD_HARNESS_SECRET in prod
+L15,1,provenance,agentshield/provenance.py,HIGH,source-bound HMAC replays no nonce,roadmap,,,tokens documented replayable; planned session+nonce+expiry
+L16,1,provenance,agentshield/provenance.py,HIGH,trusted_scope launders untrusted content,partial,ef9dd3b,,re-entrancy fixed; turn-granularity scope is architecture; graph layer binds decisions per call
+L16b,2,provenance,agentshield/provenance.py,HIGH,out-of-order scope exit persists USER,fixed,a5a72d2,test_wave2 order,order check + fail-closed UNTRUSTED fallback
+L17,1,policy,agentshield/policy/models.py,HIGH,tool case/space variant DENY->HOLD,fixed,ef9dd3b,probe,strip+lower lookup
+L17b,2,policy,agentshield/policy/models.py,HIGH,unicode/format-char + cap-key evade DENY,fixed,a5a72d2,test_wave2 lookup,NFKC+Cf-strip both sides of lookup
+L18,1,policy,agentshield/policy/loader.py + models.py,HIGH,empty-string policy key turns unknown into ALLOW,fixed,ef9dd3b,probe,blank-key reject + min_length=1
+L19,1,llm-detector,agentshield/detection/llm_detector.py,HIGH,missing-key/timeout holds; fewer detectors = less detection,by-design,,,operator config choice; errors still fail closed to HOLD
+L20,1,enforce,agentshield/engine_factory.py,HIGH,ENFORCE=0 kill-switch DENY->ALLOW,by-design,,,demo theater; explicit enforcement_disabled reason + audit-logged admin action
+L21,1,enforce,agentshield/enforce.py,HIGH,guard drops *args positional payload allowed,fixed,ef9dd3b,probe,inspect.signature positional binding into ToolCall
+L22,1,enforce,agentshield/enforce.py,HIGH,__wrapped__ exposes raw unguarded body,fixed,ef9dd3b,probe,del wrapper.__wrapped__
+L23,1,rag,agentshield/rag/tools.py,HIGH,read_rag_docs serves poison with zero enforcement,accepted,,,design: retrieval is not execution; n bounded + citations sanitized; enforcement happens at point of use
+L24,1,enforce,agentshield/enforce.py + policy/engine.py,HIGH,forged PolicyViolation + detector exception escapes,fixed,ef9dd3b,probe,body forgery mapped to RuntimeError; per-detector try/except fail-closed
+L24b,2,enforce,agentshield/enforce.py,HIGH,async body forged PolicyViolation escapes raw,fixed,f749cc3,test_wave2 async,async-capable guard with identical protections
+L25,1,metadata,agentshield/detection/heuristic.py + approval/queue.py,HIGH,detectors skip metadata; approval hash ignores it,fixed,ef9dd3b,probe,metadata scanned; args_hash binds (tool+args+metadata)
+L26,1,mcp,agentshield/gateway/mcp_gateway.py,HIGH,non-dict tag crashes middleware,fixed,ef9dd3b,probe,isinstance(dict) guard falls back to {}
+L27,1,mcp,agentshield/gateway/mcp_gateway.py,HIGH,tag-strip/missing-tag blinds detectors silent ALLOW,accepted,,,consistent with on_untrusted_low_sensitivity default; high-sensitivity untagged calls still DENY
+L27b,2,mcp+provenance,agentshield/gateway/mcp_gateway.py + provenance.py,HIGH,non-string token TypeError escapes unaudited,fixed,a5a72d2,test_wave2 token,isinstance(token str) guard -> UNTRUSTED
+L28,1,http,agentshield/gateway/app.py,HIGH,unauth health/ready/openapi leak policy and dev-mode,fixed,a5a72d2,test_admin health,/health trimmed to liveness-only; details moved to gated /v1/evidence
+L28b,2,http,agentshield/gateway/app.py,HIGH,single shared key guards global kill-switch,fixed,a5a72d2,test_admin split,AGENTSHIELD_ADMIN_KEY split for /v1/admin/*
+L29,1,config,agentshield/config.py,HIGH,empty API key fail-open + key frozen at import,by-design,,,auth is opt-in; empty normalizes to None; startup warning added when open
+L29c,2,config,agentshield/config.py,HIGH,CWD-dependent .env silently disables auth,mitigated,a5a72d2,warning,open-gateway startup warning + run-from-root docs
+L30,1,audit,agentshield/audit/log.py,HIGH,redaction exact-key miss leaks variants,fixed,ef9dd3b,probe,separator-insensitive + fragment matching
+L31,1,audit,agentshield/audit/log.py,HIGH,redaction blind to strings and nested JSON secrets,fixed,ef9dd3b+a5a72d2,test_wave2 tokens,JSON-blob parse; provider token-shape masking in free text
+L32,1,approval,agentshield/approval/queue.py,HIGH,forged/replayable approval_of squats pending,fixed,ef9dd3b,probe,approvals must chain to a real hold with matching hash
+L32b,2,approval,agentshield/approval/queue.py,HIGH,one approval authorizes unlimited repeats,fixed,a5a72d2,test_approval single-use,single-use consumption records; hold returns to pending
+L33,1,agent,agentshield/agent/graph.py,HIGH,checkpoint rewrite + unauth resume/state disclose,fixed,ef9dd3b,probe,finalize _reverify vetoes swapped args and fresh DENY
+L33b,2,agent,agentshield/agent/graph.py,HIGH,low-sens unauth resume-approve with no scope,deployment-scope,,,resume/update_state/get_state must be auth-gated in prod; in-process demo is single-user
+L33c,2,agent,agentshield/agent/graph.py,HIGH,checkpoint decision-flip bypasses approval,fixed,a5a72d2,test_agent flip,process-local verdict registry vetoes drift
+L34,1,audit,agentshield/audit/log.py,HIGH,corrupt/torn lines dropped; races tear JSONL,partial,ef9dd3b,,thread lock kept; cross-process rotation/permissions are operator duty
+L34b,2,audit,agentshield/audit/log.py,HIGH,compound-key fragment gap ssn/cvv/card/auth,fixed,a5a72d2,test_wave2 compound,fragments added; over-redaction errs safe
+L35,1,rag,agentshield/rag/store.py,HIGH,doc_id forgery auto-ingest empty-query no size cap,partial,a5a72d2,tests,sanitized ids + dup/size pre-validation; corpus is operator input; empty-query returns generic docs
+L35b,2,rag,agentshield/rag/tools.py + agent/graph.py,HIGH,chunk-delimiter/citation forgery via newlines,fixed,a5a72d2,test_rag citation,format_chunk escapes newlines + safe-alphabet ids
+L36,1,rag,agentshield/rag/store.py,HIGH,unbounded size and n_results; LLM truncation blind,partial,a5a72d2,tests,n clamped 1..50; 100KB doc cap; LLM-context truncation inherent to optional layer
+L36b,2,rag,agentshield/rag/store.py,HIGH,duplicate-doc-id ingest wipes store then DoS,fixed,a5a72d2,test_rag dup,pre-wipe duplicate validation

@@ -9,7 +9,7 @@ enforcement off: ALLOW. Say: without the boundary, the model obeys the document.
 0:45-1:15 — Gate ON blocks. Same call: DENY with quoted rule
 (injection_detected + untrusted_source). Run examples/rag_demo.py beats 1-3
 live: legit ALLOW, poison DENY, email HELD then human-approved.
-1:15-1:45 — Proof. pytest -q (51 green), semgrep.json (0 findings, 234 rules),
+1:15-1:45 — Proof. pytest -q (81 green), semgrep.json (0 findings, 238 rules),
 GET /v1/evidence (health + enforced + audit tail). Say: every verdict carries
 rule id plus quoted evidence plus severity.
 1:45-2:00 — Pitch. Boundaries are code: every call gets allow, deny, or approval
@@ -20,7 +20,7 @@ YouTube link + local mp4) and walk judges through semgrep.json + pytest log.
 
 ## Live demo commands (deterministic order)
 
-1. `.venv\Scripts\python.exe -m examples.rag_demo` (beats 1-5, no server needed)
+1. `.venv\Scripts\python.exe -m examples.rag_demo` (beats 1-6, no server needed)
 2. `uvicorn agentshield.gateway.app:app` + curl POST /v1/check (deny),
    POST /v1/admin/enforce {"enabled": false} (allow), flip back (deny)
 3. `.venv\Scripts\python.exe -m pytest tests -q` (51 passed)
@@ -28,7 +28,7 @@ YouTube link + local mp4) and walk judges through semgrep.json + pytest log.
 
 ## Evidence pack (submit alongside repo URL + commit hash + 2-line pitch)
 
-- pytest log (51 passed), semgrep.json (0 findings), demo console log,
+- pytest log (81 passed), semgrep.json (0 findings), demo console log,
   3 curls (check deny, enforce toggle, evidence), redacted audit tail sample.
 - State non-goals out loud: replayable tokens (documented), no upstream MCP
   proxy yet, TLS/secrets operator-owned (see THREAT_MODEL.md).
