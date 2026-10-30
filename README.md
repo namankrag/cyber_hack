@@ -54,6 +54,8 @@ python -m pytest -q
 # ~80MB ONNX embedding model once). New demos: python -m examples.rag_demo
 # (RAG + graph, 6 beats). Full map: docs/ARCHITECTURE.md. Red-team evidence:
 # docs/RED_LOOP_REPORT.md + docs/red_loop_ledger.csv (Excel-readable).
+# Print pack: docs/AgentShield_end_to_end.pdf (rebuild: python
+# scripts/build_pdf.py — needs reportlab).
 # Semgrep lives OUTSIDE .venv (it pins mcp==1.29.0):
 # powershell -ExecutionPolicy Bypass -File scripts/semgrep_gate.ps1
 
