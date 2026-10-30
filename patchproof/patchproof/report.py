@@ -22,6 +22,17 @@ _BADGE = {
 }
 
 
+def _cvss_dict(finding) -> dict:
+    """CVSS assessment for the report (never breaks rendering: {} on miss)."""
+    try:
+        from .models import cvss_for_finding
+        a = cvss_for_finding(finding)
+        return {"vector": a.vector, "base_score": a.base_score,
+                "severity": a.severity, "metrics": dict(a.metrics)}
+    except Exception:  # noqa: BLE001 - unmapped rule renders without CVSS
+        return {}
+
+
 def to_dict(result: PipelineResult) -> dict:
     issues = []
     for it in result.issues:
@@ -53,6 +64,11 @@ def to_dict(result: PipelineResult) -> dict:
             "variants_total": v.variants_total if v else None,
             "bypass_payload": v.bypass_payload if v else None,
             "coverage": dict(v.coverage) if v else None,
+            "lines_added": v.lines_added if v else None,
+            "lines_removed": v.lines_removed if v else None,
+            "functions_touched": list(v.functions_touched) if v else None,
+            "is_minimal": v.is_minimal if v else None,
+            "cvss": _cvss_dict(it.finding),
         })
     return {
         "target": result.target,
@@ -82,6 +98,21 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
         reg_pass = sum(1 for c in reg if c["passed"])
         exploit_line = ("✓ blocked" if it["exploit_blocked_after"]
                         else "✗ still exploitable") if it["confirmed"] else "—"
+        cvss = it.get("cvss") or {}
+        cvss_row = ""
+        if cvss:
+            cvss_row = (f"<tr><th>CVSS v3.1</th><td><code>"
+                        f"{html.escape(cvss['vector'])}</code> "
+                        f"<b>{cvss['base_score']:.1f} "
+                        f"{html.escape(cvss['severity'])}</b></td></tr>")
+        size_row = ""
+        if it.get("functions_touched") is not None and it.get("diff"):
+            funcs = ", ".join(html.escape(f) for f in it["functions_touched"])
+            minimal = ("minimal" if it.get("is_minimal")
+                       else "<b>NOT MINIMAL</b>")
+            size_row = (f"<tr><th>Patch size</th><td>"
+                        f"+{it['lines_added']}/-{it['lines_removed']} "
+                        f"in {funcs} &middot; {minimal}</td></tr>")
         cov = it.get("coverage") or {}
         cov_line = ""
         if cov:
@@ -110,6 +141,8 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
           <table class="meta">
             <tr><th>Severity</th><td><b>{it['severity'].upper()}</b> — {html.escape(it['severity_rationale'])}</td></tr>
             <tr><th>Location</th><td><code>{html.escape(it['location'])}</code></td></tr>
+            {cvss_row}
+            {size_row}
           <tr><th>Request shape</th><td><code>{html.escape(it['method'])} {html.escape(it['route'])}</code> · param <code>{html.escape(it['param'])}</code> → sink <code>{html.escape(it['sink'])}</code></td></tr>
             <tr><th>Offending code</th><td><code>{html.escape(it['snippet'])}</code></td></tr>
             <tr><th>Exploit (proof it's real)</th><td>{html.escape(it['exploit_evidence'])}</td></tr>

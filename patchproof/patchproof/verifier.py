@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from .manifest import fixture_id_for_path, load_manifest
-from .models import Finding, VerificationResult
+from .models import MINIMAL_PATCH_MAX_LINES, Finding, VerificationResult
 from .patches import Patch
 from .sandbox import assert_bundled_fixture_target, run_fixture_jobs
 
@@ -129,6 +129,9 @@ def _verify(target_file: str, original: str, patched_src: str,
         from .checks import variant_payloads
         from .scanner import scan_text
         result.diff = _diff(original, patched_src, target_file)
+        (result.lines_added, result.lines_removed,
+         result.functions_touched,
+         result.is_minimal) = _diff_stat(original, patched_src)
         fixture = _fixture_of(target_file)
         snapshot = finding.to_dict()
         all_findings = [f.to_dict() for f in scan_text(original)]
@@ -230,6 +233,48 @@ def _changed_lines(original: str, patched: str) -> set[int]:
         else:
             changed.update(range(j1 + 1, j2 + 1))
     return changed
+
+
+def _touched_functions(patched_src: str, changed: set[int]) -> list[str]:
+    """Sorted names of scopes the patch touches (module-level -> "<module>")."""
+    tree = ast.parse(patched_src)
+    lines = patched_src.splitlines()
+    scopes = [n for n in ast.walk(tree)
+              if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    touched: list[str] = []
+    for lineno in sorted(changed):
+        if not 1 <= lineno <= len(lines):
+            continue
+        owners = [n for n in scopes
+                  if n.lineno <= lineno <= (n.end_lineno or n.lineno)]
+        if not owners:
+            name = "<module>"
+        else:
+            owner = min(owners,
+                        key=lambda n: (n.end_lineno or n.lineno) - n.lineno)
+            name = owner.name
+        if name not in touched:
+            touched.append(name)
+    return sorted(touched)
+
+
+def _diff_stat(original: str, patched: str,
+               threshold: int = MINIMAL_PATCH_MAX_LINES
+               ) -> tuple[int, int, list[str], bool]:
+    """(added, removed, touched functions, is-minimal) for a patch diff."""
+    a = original.splitlines()
+    b = patched.splitlines()
+    added = removed = 0
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+            None, a, b).get_opcodes():
+        if tag == "equal":
+            continue
+        if tag in ("replace", "insert"):
+            added += j2 - j1
+        if tag in ("replace", "delete"):
+            removed += i2 - i1
+    touched = _touched_functions(patched, _changed_lines(original, patched))
+    return added, removed, touched, (added + removed) <= threshold
 
 
 def _coverage_by_function(patched_src: str, changed: set[int],
