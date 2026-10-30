@@ -1,0 +1,105 @@
+# PatchProof PR gate (PS-02 item 6) — reusable workflow.
+#
+# What it does, per fixture (vulnbank + shopapi):
+#   1. Runs `patchproof sarif` (find -> prove -> patch -> prove-fixed).
+#   2. Shape-checks the SARIF log (`sarif --check`: SARIF 2.1.0 + every
+#      result names a declared rule/CWE/severity/location + patch status).
+#   3. Uploads the SARIF log to code scanning and the HTML report as an
+#      artifact.
+#   4. FAILS unless every confirmed finding is FIXED & VERIFIED
+#      (`patchproof sarif` exits nonzero otherwise — unconfirmed decoy
+#      alerts never fail the gate; they are dropped, not patched).
+#
+# The eval job documents the second half of the gate: root pytest plus
+# `secureai eval --once` (8/8 acceptance gates). Neither half ran here —
+# this file only declares the contract; CI runs it.
+#
+# Reuse from another workflow:
+#   jobs:
+#     patchproof:
+#       uses: ./.github/workflows/patchproof.yml
+
+name: PatchProof gate
+
+on:
+  workflow_call:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  patchproof-gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        fixture: [vulnbank, shopapi]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Workflow YAML validity (parse check)
+        run: python -c "import yaml; yaml.safe_load(open('.github/workflows/patchproof.yml')); print('workflow YAML parses')"
+
+      - name: Run PatchProof SARIF gate
+        run: |
+          PYTHONPATH=patchproof python -m patchproof sarif \
+            patchproof/${{ matrix.fixture }}/app.py \
+            --engine ast \
+            --output ${{ matrix.fixture }}.sarif \
+            --report ${{ matrix.fixture }}-report.html
+        # ^^^ exits nonzero unless every confirmed finding is FIXED &
+        # VERIFIED — that nonzero exit is what fails the PR gate.
+
+      - name: SARIF shape check
+        run: python -m patchproof sarif --check ${{ matrix.fixture }}.sarif
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ matrix.fixture }}.sarif
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: patchproof-report-${{ matrix.fixture }}
+          path: |
+            ${{ matrix.fixture }}-report.html
+            ${{ matrix.fixture }}-report.json
+
+  eval-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Root test suite
+        run: python -m pytest -q
+
+      - name: SecureAI evaluation (8/8 gates)
+        run: python -m secureai eval --once --out-dir eval-out
+
+      - name: Upload scorecard
+        uses: actions/upload-artifact@v4
+        with:
+          name: secureai-scorecard
+          path: eval-out/

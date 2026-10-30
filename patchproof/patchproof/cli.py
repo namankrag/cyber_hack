@@ -39,7 +39,7 @@ def _cmd_scan(args) -> int:
 def _cmd_run(args) -> int:
     load_dotenv()
     from .pipeline import run_pipeline
-    from .report import write_html, write_json
+    from .report import write_html, write_json, write_sarif
 
     result = run_pipeline(args.file, engine=args.engine,
                           use_ai=args.ai, ai_provider=args.provider)
@@ -63,7 +63,57 @@ def _cmd_run(args) -> int:
         write_html(result, args.report)
         write_json(result, args.report.rsplit(".", 1)[0] + ".json")
         console.print(f"[dim]Report written: {args.report}[/]")
+    if args.sarif:
+        write_sarif(result, args.sarif)
+        console.print(f"[dim]SARIF written: {args.sarif}[/]")
     return 0 if result.fixed == result.confirmed else 1
+
+
+def _cmd_sarif(args) -> int:
+    """Run the pipeline and emit SARIF 2.1.0 for the PR gate.
+
+    Exit 0 only if every confirmed finding is FIXED & VERIFIED (the CI gate
+    contract); otherwise exit 1. With --check, validate an existing SARIF
+    file's shape instead of running the pipeline.
+    """
+    from .report import validate_sarif, write_html, write_json, write_sarif
+
+    if args.check:
+        import json as _json
+        with open(args.check, encoding="utf-8") as handle:
+            doc = _json.load(handle)
+        errors = validate_sarif(doc)
+        if errors:
+            console.print("[red]SARIF invalid:[/]")
+            for err in errors:
+                console.print(f"  - {err}")
+            return 1
+        console.print("[green]SARIF shape ok[/] "
+                      f"({len(doc['runs'][0]['results'])} result(s))")
+        return 0
+
+    if not args.file and not args.check:
+        console.print("[red]patchproof sarif needs a target file "
+                      "(or --check SARIF_FILE to validate)[/]")
+        return 2
+
+    load_dotenv()
+    from .pipeline import run_pipeline
+
+    result = run_pipeline(args.file, engine=args.engine,
+                          use_ai=args.ai, ai_provider=args.provider)
+    write_sarif(result, args.output)
+    if args.report:
+        write_html(result, args.report)
+        write_json(result, args.report.rsplit(".", 1)[0] + ".json")
+
+    gate_ok = result.fixed == result.confirmed
+    color = "green" if gate_ok else "red"
+    console.print(f"[bold]PatchProof SARIF[/] - {result.confirmed} confirmed, "
+                  f"{result.fixed} fixed & verified -> "
+                  f"[{color}]{'GATE PASS' if gate_ok else 'GATE FAIL'}[/]")
+    console.print(f"[dim]SARIF written: {args.output}[/]")
+    return 0 if gate_ok else 1
 
 
 def main(argv=None) -> int:
@@ -84,7 +134,23 @@ def main(argv=None) -> int:
     pr.add_argument("--ai", action="store_true", help="try AI-generated patches")
     pr.add_argument("--provider", default=None, choices=["gemini", "groq"])
     pr.add_argument("--report", default=None, help="write HTML report to this path")
+    pr.add_argument("--sarif", default=None,
+                    help="also write a SARIF 2.1.0 log to this path")
     pr.set_defaults(func=_cmd_run)
+
+    psarif = sub.add_parser("sarif", help="run pipeline, emit SARIF 2.1.0, gate on FIXED & VERIFIED")
+    psarif.add_argument("file", nargs="?", default=None)
+    psarif.add_argument("--engine", default="auto",
+                        choices=["ast", "semgrep", "both", "auto"])
+    psarif.add_argument("--ai", action="store_true", help="try AI-generated patches")
+    psarif.add_argument("--provider", default=None, choices=["gemini", "groq"])
+    psarif.add_argument("--output", default="report.sarif",
+                        help="SARIF output path (default: report.sarif)")
+    psarif.add_argument("--report", default=None,
+                        help="optionally also write an HTML report to this path")
+    psarif.add_argument("--check", default=None, metavar="SARIF_FILE",
+                        help="validate a SARIF file's shape instead of running")
+    psarif.set_defaults(func=_cmd_sarif)
 
     args = parser.parse_args(argv)
     return args.func(args)

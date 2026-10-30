@@ -203,6 +203,174 @@ fix is proven to block that exploit while the regression suite stays green. Synt
     Path(path).write_text(doc, encoding="utf-8")
 
 
+# --------------------------------------------------------------------------
+# Item-6 SARIF 2.1.0 output: the same findings, machine-readable for PR gates.
+# Every issue becomes one SARIF result carrying rule/CWE/severity/location +
+# patch status; the run carries the noise-funnel summary as properties. The
+# CI gate (`.github/workflows/patchproof.yml`) uploads this file and fails
+# unless every confirmed finding is FIXED & VERIFIED.
+# --------------------------------------------------------------------------
+
+SARIF_VERSION = "2.1.0"
+SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
+
+_SEVERITY_TO_SARIF_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+}
+
+
+def _sarif_uri(path: str) -> str:
+    """Repo-relative artifact URI with forward slashes (SARIF wants URIs)."""
+    return str(path).replace("\\", "/")
+
+
+def to_sarif(result: PipelineResult) -> dict:
+    """Render a pipeline result as a SARIF 2.1.0 log dict."""
+    rules: list[dict] = []
+    rule_index: dict[str, int] = {}
+    for it in result.issues:
+        if it.finding.rule_id not in rule_index:
+            rule_index[it.finding.rule_id] = len(rules)
+            rules.append({
+                "id": it.finding.rule_id,
+                "name": it.finding.title,
+                "shortDescription": {"text": it.finding.title},
+                "fullDescription": {"text": it.finding.severity_rationale},
+                "properties": {
+                    "cwe": it.finding.cwe,
+                    "severity": it.finding.severity.value,
+                },
+            })
+    sarif_results = []
+    for it in result.issues:
+        f = it.finding
+        v = it.verification
+        reg = v.regression_after if v else []
+        sarif_results.append({
+            "ruleId": f.rule_id,
+            "ruleIndex": rule_index[f.rule_id],
+            "level": _SEVERITY_TO_SARIF_LEVEL.get(f.severity.value, "warning"),
+            "message": {
+                "text": (f"{it.status}: {f.title} "
+                         f"({f.cwe}, severity {f.severity.value}). "
+                         f"{it.exploit_evidence or ''}").strip(),
+            },
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": _sarif_uri(f.file)},
+                    "region": {
+                        "startLine": f.line,
+                        "snippet": {"text": f.snippet},
+                    },
+                },
+            }],
+            "properties": {
+                "cwe": f.cwe,
+                "severity": f.severity.value,
+                "severity_rationale": f.severity_rationale,
+                "confirmed": it.confirmed,
+                "patch_status": it.status,
+                "patch_accepted": bool(v and v.accepted),
+                "exploit_blocked_after": (not v.patched_exploited) if v else None,
+                "regression_passed": (
+                    f"{sum(1 for c in reg if c.passed)}/{len(reg)}"
+                    if v else None),
+                "variants_blocked": v.variants_blocked if v else None,
+                "variants_total": v.variants_total if v else None,
+                "bypass_payload": v.bypass_payload if v else None,
+            },
+        })
+    return {
+        "$schema": SARIF_SCHEMA,
+        "version": SARIF_VERSION,
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "PatchProof",
+                    "version": "0.1.0",
+                    "informationUri": "https://github.com/agentshield/patchproof",
+                    "rules": rules,
+                },
+            },
+            "results": sarif_results,
+            "properties": {
+                "patchproof": {
+                    "target": result.target,
+                    "engine": result.engine,
+                    "raw_alerts": result.raw_alerts,
+                    "confirmed": result.confirmed,
+                    "fixed": result.fixed,
+                    "precision_before": round(result.precision_before, 4),
+                    "precision_after": round(result.precision_after, 4),
+                },
+            },
+        }],
+    }
+
+
+def validate_sarif(doc: dict) -> list[str]:
+    """Shape-check a SARIF log dict. Returns error strings ([] means valid).
+
+    Used by `patchproof sarif --check`-style flows and the CI workflow step:
+    it asserts SARIF 2.1.0 shape plus the PatchProof gate contract (every
+    result names a declared rule/CWE/severity/location and carries a patch
+    status). It is not a JSON-schema validator — just the load-bearing shape.
+    """
+    errors: list[str] = []
+    if not isinstance(doc, dict):
+        return ["top level must be an object"]
+    if doc.get("version") != SARIF_VERSION:
+        errors.append(f"version must be {SARIF_VERSION!r}, "
+                      f"got {doc.get('version')!r}")
+    runs = doc.get("runs")
+    if not isinstance(runs, list) or not runs:
+        return errors + ["runs must be a non-empty array"]
+    for ri, run in enumerate(runs):
+        driver = (run.get("tool") or {}).get("driver") or {}
+        if driver.get("name") != "PatchProof":
+            errors.append(f"runs[{ri}].tool.driver.name must be 'PatchProof'")
+        rule_ids = {r.get("id") for r in driver.get("rules", [])}
+        if not rule_ids or None in rule_ids:
+            errors.append(f"runs[{ri}].tool.driver.rules must declare rule ids")
+        results = run.get("results")
+        if not isinstance(results, list):
+            errors.append(f"runs[{ri}].results must be an array")
+            continue
+        for n, res in enumerate(results):
+            where = f"runs[{ri}].results[{n}]"
+            if res.get("ruleId") not in rule_ids:
+                errors.append(f"{where}.ruleId {res.get('ruleId')!r} "
+                              f"is not a declared rule")
+            if res.get("level") not in {"none", "note", "warning", "error"}:
+                errors.append(f"{where}.level {res.get('level')!r} is invalid")
+            locs = res.get("locations") or []
+            try:
+                phys = locs[0]["physicalLocation"]
+                uri = phys["artifactLocation"]["uri"]
+                line = phys["region"]["startLine"]
+            except (IndexError, KeyError, TypeError):
+                errors.append(f"{where} must carry "
+                              f"locations[0].physicalLocation.artifactLocation.uri "
+                              f"+ region.startLine")
+            else:
+                if not uri or not isinstance(line, int) or line < 1:
+                    errors.append(f"{where} has a bad location "
+                                  f"(uri={uri!r}, startLine={line!r})")
+            props = res.get("properties") or {}
+            for key in ("cwe", "severity", "confirmed", "patch_status"):
+                if key not in props:
+                    errors.append(f"{where}.properties.{key} is missing")
+    return errors
+
+
+def write_sarif(result: PipelineResult, path: str | Path) -> None:
+    Path(path).write_text(json.dumps(to_sarif(result), indent=2),
+                           encoding="utf-8")
+
+
 def _color_diff(diff: str) -> str:
     out = []
     for line in diff.splitlines():
