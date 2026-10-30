@@ -345,7 +345,7 @@ Verified in this repository with:
 - Interaction checks: command palette open/filter/close, user menu, time-window
   switching, settings deep links, enforcement toggle, approval decisions,
   red-team run, boundary check, corpus error state, gateway-offline and
-  malformed-response states.
+  malformed-response states. Final-merge probe (production build + live gateway): public routes 200; privileged routes 401 without login, 200 with login; unknown paths 404.
 
 ---
 
@@ -353,8 +353,8 @@ Verified in this repository with:
 
 These are real constraints, not frontend shortcuts:
 
-- No auth/session/RBAC endpoints; admin capability is inferred by probing and
-  the dev gateway reports `auth_required: false`.
+- No RBAC roles; admin capability is one signed session (`POST /api/admin/login` with `ADMIN_PASSWORD`: httpOnly `SameSite=Lax` cookie, 8h TTL).
+  Privileged proxy routes return `401` without that session; the dev gateway itself reports `auth_required: false` when no API key is set.
 - No policy publish endpoint, so Policy Manager is read-only.
 - No dedicated agents/sessions store; sessions are projected from audit
   metadata and limited to the retained sample.

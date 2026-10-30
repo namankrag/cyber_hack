@@ -34,7 +34,7 @@ checking for residual findings. Gates are evaluated at threshold 0.5 (the tune s
   vulnerable source remains intact for repeatable evaluation.
 - The scorecard is CI-ready: `secureai eval --once` exits nonzero if any gate
   fails. `secureai eval --tune` records each tested threshold. `secureai watch`
-  reruns the loop and evaluation when the bundled tool fixture changes. Validate the tree with one root `pytest -q` -> 257 passed, 1 skipped (Semgrep-engine test; Semgrep not installed - graceful AST fallback).
+  reruns the loop and evaluation when the bundled tool fixture changes. Validate the tree with one root `pytest -q` -> 268 passed, 1 skipped (Semgrep-engine test; Semgrep not installed - graceful AST fallback).
 
 ## Artifacts
 

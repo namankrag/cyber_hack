@@ -25,7 +25,7 @@ The legitimate high-impact email is held, a human clicks approve, done —
 containment without killing the workflow. Numbers from the frozen
 84-case benchmark: OFF 100% attack success → ON 4.3%, benign false
 positives 0.0%, high-impact approval correctness 100%, decision latency
-p50 under 1ms. Full suite: 257 passed, 1 skipped; semgrep 0 findings
+p50 under 1ms. Full suite: 268 passed, 1 skipped; semgrep 0 findings
 over 238 rules. Three honest misses are disclosed in BENCHMARK.md —
 hold is containment, not a verdict.
 

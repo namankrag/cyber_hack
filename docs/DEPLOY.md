@@ -68,7 +68,7 @@ Record one take, keep the file + link next to the repo URL:
       DENY, email HELD then human-approved (no server needed).
 - [ ] OFF-vs-ON: `POST /v1/check` poisoned call with enforcement
       disabled (ALLOW) vs enabled (DENY) — the two curls above.
-- [ ] `python -m pytest -q` — full suite green (257 passed, 1 skipped
+- [ ] `python -m pytest -q` — full suite green (268 passed, 1 skipped
       semgrep) + `scripts/semgrep_gate.ps1` exit 0.
 - [ ] `GET /v1/evidence` — health + enforced flag + audit tail sample.
 - [ ] Walk `docs/BENCHMARK.md` numbers (OFF 100% attack success → ON

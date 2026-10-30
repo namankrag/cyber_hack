@@ -34,7 +34,7 @@ Approve the held email (human click, done — containment, not breakage).
 Then the numbers, all from `docs/BENCHMARK.md` (frozen 84 cases):
 OFF 100% attack success → ON 4.3%; benign false positives 0.0%;
 approval correctness 100%; p50 decision latency 0.579ms. Evidence on
-screen: `python -m pytest -q` (257 passed, 1 skipped),
+screen: `python -m pytest -q` (268 passed, 1 skipped),
 `GET /v1/evidence` (health + enforced + audit tail), semgrep 0
 findings. Name the three honest misses in one sentence — hold is
 containment, not a verdict.

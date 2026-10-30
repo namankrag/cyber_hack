@@ -29,7 +29,7 @@ succeed — and make sure it still can't *do* anything.
 Code layer in one line: `patchproof sarif` proves each finding with an
 exploit and fails the PR unless everything confirmed is fixed —
 16 alerts → 8 confirmed → 8 fixed across both fixtures (85/85 variant
-payloads blocked). Full gates: `python -m pytest -q` (257 passed,
+payloads blocked). Full gates: `python -m pytest -q` (268 passed,
 1 skipped) and `python -m secureai eval --once` (8/8).
 
 ---
@@ -342,7 +342,7 @@ Artifacts: `reports/platform_dashboard.html`, `reports/loop_report.json`,
 `reports/scorecard.json` + `reports/scorecard.html`, and
 `reports/tuned/scorecard.json` + `scorecard.html`.
 
-Validate with one root run: `pytest -q` -> **257 passed, 1 skipped** (the
+Validate with one root run: `pytest -q` -> **268 passed, 1 skipped** (the
 skip is the Semgrep-engine test; Semgrep is not installed, so the platform
 uses its graceful AST fallback).
 
