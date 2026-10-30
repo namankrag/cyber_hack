@@ -34,9 +34,38 @@ class AgentState(TypedDict, total=False):
     context: str         # caller context; retrieved chunks are appended here
     chunks: list         # retrieved UNTRUSTED chunks
     decision: str        # ALLOW | REQUIRE_APPROVAL | DENY
+    decided_tool: str    # tool-name snapshot at decide time (tamper check)
+    decided_arguments: dict  # arguments snapshot at decide time (tamper check)
     reasons: list        # ordered rule details from the engine
     approved: str | None  # human verdict after interrupt()
     outcome: str         # allowed | denied | human-approved | human-denied
+
+
+def _reverify(shield: AgentShield, state: AgentState) -> str | None:
+    """Re-check the CURRENT state at finalize time; return a veto or None.
+
+    Checkpoint writes between pause and resume (or tampered transitions)
+    must not launder a verdict: swapped arguments, a flipped decision, or
+    a freshly-denying re-check all resolve to "denied" instead of executing.
+    """
+    if (state.get("decided_tool") is not None
+            and (state.get("tool_name") != state.get("decided_tool")
+                 or dict(state.get("arguments", {}))
+                 != dict(state.get("decided_arguments") or {}))):
+        return "denied"
+    try:
+        current = ToolCall(tool_name=state.get("tool_name", "") or "",
+                           arguments=dict(state.get("arguments", {})),
+                           source=resolve(),
+                           context=state.get("context", ""))
+        fresh = shield.check(current)
+    except Exception:
+        return "denied"
+    if fresh.decision is Decision.DENY:
+        return "denied"
+    if state.get("decision") == Decision.DENY.value:
+        return "denied"
+    return None
 
 
 def build_graph(shield: AgentShield | None = None,
@@ -70,6 +99,8 @@ def build_graph(shield: AgentShield | None = None,
                         context=state.get("context", ""))
         result = shield.check(call)
         return {"decision": result.decision.value,
+                "decided_tool": state["tool_name"],
+                "decided_arguments": dict(state.get("arguments", {})),
                 "reasons": [f"{r.rule}: {r.detail}" for r in result.reasons]}
 
     def gate(state: AgentState) -> dict:
@@ -81,6 +112,9 @@ def build_graph(shield: AgentShield | None = None,
         return {"approved": str(answer).strip().lower()}
 
     def finalize(state: AgentState) -> dict:
+        veto = _reverify(shield, state)
+        if veto is not None:
+            return {"outcome": veto}
         d = state.get("decision")
         if d == Decision.DENY.value:
             outcome = "denied"

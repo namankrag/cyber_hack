@@ -51,15 +51,15 @@ class trusted_scope:
 
     def __init__(self, source: TrustLevel) -> None:
         self.source = source
-        self._token = None
+        self._tokens: list = []
 
     def __enter__(self) -> "trusted_scope":
-        self._token = _current_provenance.set(self.source)
+        self._tokens.append(_current_provenance.set(self.source))
         return self
 
     def __exit__(self, *exc) -> None:
-        if self._token is not None:
-            _current_provenance.reset(self._token)
+        if self._tokens:
+            _current_provenance.reset(self._tokens.pop())
 
 
 def _secret() -> bytes | None:

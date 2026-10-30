@@ -74,9 +74,19 @@ class EnforcementMiddleware:
         # resolves to UNTRUSTED. The agent (and any injected content) can place
         # a tag in the arguments, but cannot forge the token.
         tag = arguments.pop(_TAG, {}) or {}
+        if not isinstance(tag, dict):
+            tag = {}
         source = resolve(tag.get("source"), tag.get("token"))
         context = str(tag.get("context", ""))
 
+        if not isinstance(name, str) or not name.strip():
+            return mcp_types.CallToolResult(
+                content=[mcp_types.TextContent(
+                    type="text",
+                    text="DENIED by AgentShield.\nTool: (missing name)\nDecision: deny\n"
+                         "Reasons:\n  - [invalid_tool] missing or blank tool name.")],
+                is_error=True,
+            )
         call = ToolCall(
             tool_name=str(name),
             arguments=arguments,

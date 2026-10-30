@@ -57,6 +57,9 @@ class Config:
     api_key: str | None = None            # if set, required to call the HTTP gateway
     redact_keys: list[str] = field(default_factory=lambda: [
         "password", "passwd", "secret", "token", "api_key", "apikey",
+        "api_secret", "password_hash", "api-key", "api-secret",
+        "access_token", "client_secret", "refresh_token", "private_key",
+        "session_key", "id_token",
         "authorization", "auth", "credential", "credentials", "ssn",
         "card", "cvv", "pin",
     ])

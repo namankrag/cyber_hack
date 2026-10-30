@@ -15,8 +15,10 @@ label, so normalization never double-counts a signal.
 """
 from __future__ import annotations
 
+import base64
 import re
 import unicodedata
+from urllib.parse import unquote
 
 from ..models import DetectionResult, ToolCall
 from .base import Detector
@@ -42,10 +44,24 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
     (re.compile(r"\b(forward|upload|post|transmit|exfiltrate)\b.{0,30}\b(all|entire|the)\b.{0,30}"
                 r"(data|database|records|files|contacts|customers?)", re.I),
      0.55, "bulk data egress instruction"),
+    (re.compile(r"\b(forward|transmit|send|post|share|email|disclose|reveal|leak)\b.{0,40}\b"
+                r"(password|passwd|secret|token|credential|api[\s_-]?key|private[\s_-]?key)\b", re.I),
+     0.7, "secret / system-prompt exfiltration attempt"),
     (re.compile(r"do\s+not\s+(tell|inform|mention|alert|notify)\s+(the\s+)?(user|owner|human|anyone)", re.I),
+     0.5, "secrecy / keep-it-hidden instruction"),
+    (re.compile(r"(?:do\s+not|never|don\s*['\u2019]?\s*t)\s+(tell|inform|mention|alert|notify|reveal|disclose)"
+                r"\s+(?:\w+\s+){0,3}?(user|owner|human|anyone|everyone|anybody)\b", re.I),
+     0.5, "secrecy / keep-it-hidden instruction"),
+    (re.compile(r"keep\s+(this|it)\s+(between\s+us|quiet|secret|hidden|to\s+yourself)|"
+                r"between\s+you\s+and\s+me|tell\s+no\s+one", re.I),
      0.5, "secrecy / keep-it-hidden instruction"),
     (re.compile(r"</?(system|instruction|important|admin)[^>]*>", re.I),
      0.45, "fake delimiter / tag injection"),
+    (re.compile(r"</?(user|assistant|human|agent|ai|model|developer)[^>]*>|\[/?INST\]", re.I),
+     0.45, "fake delimiter / tag injection"),
+    (re.compile(r"\b(running\s+as\s+root|developer\s+mode|elevated\s+privileg\w+|god\s+mode|"
+                r"jail\s*break|safety\s+(checks?|policy|filters?)\s+(disabled|off|bypassed))\b", re.I),
+     0.5, "authority claim (root / developer mode)"),
     (re.compile(r"\bBEGIN\s+(SYSTEM|ADMIN)\b|\bOVERRIDE\b|\bSUDO\b", re.I),
      0.4, "authority / override keyword"),
     (re.compile(r"(base64|fromCharCode|\\x[0-9a-f]{2}|%[0-9a-f]{2}){3,}", re.I),
@@ -63,9 +79,30 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
 ]
 
 # Invisible/format characters (zero-width spaces, bidi overrides, BOM, soft
-# hyphen) that smuggle instructions past naive matching.
-_FORMAT_CHARS = re.compile("[\u200b-\u200f\u202a-\u202e\ufeff\u00ad\u2060-\u2064]")
-_SEPARATORS = re.compile(r"[-_–—/:;,.!?*|~^`#]+")
+# hyphen, isolates, variation selectors, Mongolian FVS) that smuggle
+# instructions past naive matching.
+_FORMAT_CHARS = re.compile(
+    "[\u200b-\u200f\u202a-\u202e\ufeff\u00ad\u2060-\u2069\ufe00-\ufe0f\u180b-\u180d\u061c]")
+_SEPARATORS = re.compile(
+    r"[-_–—/:;,.!?*|~^`#\+=\(\)\[\]\{\}<>\"]+|[\u2010\u2011\u2212]+")
+
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+_INTRAWORD_SEP = re.compile(r"(?<=[A-Za-z0-9])[-_–—/:;,.!?*|~^`#\+=\(\)\[\]]+(?=[A-Za-z0-9])")
+_B64_BLOB = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
+
+# Cyrillic/Greek lookalikes NFKC does not fold (homoglyph smuggling).
+_HOMOGLYPHS = {
+    "\u0430": "a", "\u0441": "c", "\u0435": "e", "\u0454": "e",
+    "\u043e": "o", "\u043a": "k", "\u043c": "m", "\u043d": "h",
+    "\u0440": "p", "\u0442": "t", "\u0445": "x", "\u0443": "y",
+    "\u0432": "b", "\u0455": "s", "\u0456": "i", "\u0458": "j",
+    "\u0434": "d", "\u0437": "z", "\u044f": "r",
+    "\u03b1": "a", "\u03b5": "e", "\u03bf": "o", "\u03c1": "p",
+    "\u03c4": "t", "\u03c5": "u", "\u03c7": "x", "\u03ba": "k",
+    "\u03bd": "v", "\u03b9": "i", "\u03bc": "m",
+}
+_LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s",
+                       "7": "t", "8": "b", "9": "g", "@": "a", "$": "s"})
 
 
 def normalize_text(text: str) -> str:
@@ -76,6 +113,66 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", folded).strip()
 
 
+def _extra_surfaces(haystack: str) -> list[str]:
+    """Evasion-resistant views of the same input (additive: raw is also scanned)."""
+    out: list[str] = []
+    # Intra-word separator removal: "ig-nore" -> "ignore" (fold-to-space
+    # alone would leave "ig nore", which still misses whole-word patterns).
+    dehyphen = _INTRAWORD_SEP.sub("", haystack)
+    if dehyphen != haystack:
+        out += [dehyphen, normalize_text(dehyphen)]
+    # HTML-comment token splitting: scan with comments as space and removed.
+    nocom_space = _HTML_COMMENT.sub(" ", haystack)
+    nocom_empty = _HTML_COMMENT.sub("", haystack)
+    if nocom_space != haystack:
+        out += [nocom_space, normalize_text(nocom_space)]
+    if nocom_empty != haystack and nocom_empty != nocom_space:
+        out.append(nocom_empty)
+    # URL encoding (single and double): decode up to two rounds.
+    decoded = haystack
+    for _ in range(2):
+        nxt = unquote(decoded)
+        if nxt == decoded:
+            break
+        decoded = nxt
+        out += [decoded, normalize_text(decoded)]
+    # Homoglyph and leetspeak folds over the normalized view.
+    norm = normalize_text(haystack)
+    homo = "".join(_HOMOGLYPHS.get(c, c) for c in norm)
+    if homo != norm:
+        out.append(homo)
+    leet = norm.translate(_LEET)
+    if leet != norm:
+        out.append(leet)
+    return out
+
+
+def _scan_text(text: str, matched: dict[str, float]) -> None:
+    for pattern, weight, label in _PATTERNS:
+        if label not in matched and pattern.search(text):
+            matched[label] = weight
+
+
+def _scan_b64_blobs(haystack: str, matched: dict[str, float]) -> None:
+    """Decode long base64 blobs and scan the plaintext (single-blob smuggling)."""
+    for m in _B64_BLOB.finditer(haystack):
+        try:
+            raw = base64.b64decode(m.group(0), validate=True)
+        except Exception:
+            continue
+        try:
+            text = raw.decode("utf-8", errors="strict")
+        except Exception:
+            continue
+        if len(text) < 8 or not re.search(r"[a-zA-Z]{3,}", text):
+            continue
+        before = len(matched)
+        _scan_text(text, matched)
+        _scan_text(normalize_text(text), matched)
+        if len(matched) > before:
+            matched.setdefault("obfuscated / encoded payload", 0.35)
+
+
 class HeuristicDetector(Detector):
     name = "heuristic"
 
@@ -83,16 +180,26 @@ class HeuristicDetector(Detector):
         self.threshold = threshold
 
     def scan(self, call: ToolCall) -> DetectionResult:
-        # Scan both the surrounding context and the literal argument values —
-        # an injection can hide in either place. Each surface is scanned raw
-        # and normalized; matches union by label so nothing double-counts.
-        haystack = call.context + "\n" + _stringify_args(call.arguments)
+        # Scan the surrounding context, the literal argument values, and the
+        # metadata values — an injection can hide in any of them. Each
+        # surface is scanned raw, normalized, and through evasion-resistant
+        # views (glue-free, de-hyphenated, URL-decoded, leet/homoglyph
+        # folds); matches union by label so nothing double-counts.
+        haystack = (call.context + "\n" + _stringify_args(call.arguments)
+                    + "\n" + _stringify_args(call.metadata))
+        # Glue-free view: "key=value" joining must not break adjacency for
+        # triggers split across the context/arguments boundary.
+        values_only = (call.context + " "
+                       + " ".join(str(v) for v in call.arguments.values()))
 
         matched: dict[str, float] = {}
-        for text in (haystack, normalize_text(haystack)):
-            for pattern, weight, label in _PATTERNS:
-                if label not in matched and pattern.search(text):
-                    matched[label] = weight
+        surfaces = [haystack, normalize_text(haystack)]
+        if values_only != haystack:
+            surfaces += [values_only, normalize_text(values_only)]
+        surfaces += _extra_surfaces(haystack)
+        for text in surfaces:
+            _scan_text(text, matched)
+        _scan_b64_blobs(haystack, matched)
 
         score = min(sum(matched.values()), 1.0)  # saturate
         return DetectionResult(

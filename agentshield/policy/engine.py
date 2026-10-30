@@ -67,7 +67,14 @@ class PolicyEngine:
             decision = most_restrictive(decision, Decision.DENY)
 
         # --- Step 2: run detectors ----------------------------------------
-        detections = [d.scan(call) for d in self.detectors]
+        detections = []
+        for d in self.detectors:
+            try:
+                detections.append(d.scan(call))
+            except Exception as exc:  # noqa: BLE001 - detectors must never raise
+                detections.append(DetectionResult(
+                    detector=getattr(d, "name", "detector"),
+                    error=f"{type(exc).__name__}: {exc}"))
         threat = _strongest_threat(detections)
         errored = [d for d in detections if d.failed]
 

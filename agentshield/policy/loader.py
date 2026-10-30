@@ -15,4 +15,9 @@ def load_policy(path: str | Path) -> Policy:
     data = yaml.safe_load(path.read_text()) or {}
     # Pydantic validates the whole structure and fills defaults — a malformed
     # policy fails loudly at startup rather than silently at request time.
-    return Policy.model_validate(data)
+    policy = Policy.model_validate(data)
+    for key in policy.tools:
+        if not key.strip():
+            raise ValueError(
+                f"Policy {path} has a blank tool name; refusing to load.")
+    return policy

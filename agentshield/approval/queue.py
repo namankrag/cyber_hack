@@ -18,8 +18,9 @@ from ..engine_factory import AgentShield
 from ..models import Decision, ToolCall
 
 
-def args_hash(tool_name: str, arguments: dict) -> str:
-    canonical = json.dumps({"tool": tool_name, "arguments": arguments},
+def args_hash(tool_name: str, arguments: dict, metadata: dict | None = None) -> str:
+    canonical = json.dumps({"tool": tool_name, "arguments": arguments,
+                            "metadata": metadata or {}},
                            sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -35,12 +36,39 @@ class ApprovalQueue:
         self.audit = audit
         self.window = window
 
+    def _holds_by_id(self, entries: list[dict]) -> dict:
+        return {e.get("call_id"): e for e in entries
+                if e.get("decision") == Decision.REQUIRE_APPROVAL.value
+                and not e.get("approval_of")}
+
+    def _approval_valid(self, entry: dict, entries: list[dict]) -> bool:
+        """An approval counts only if it chains to a real held call.
+
+        Forged JSONL lines (approval_of pointing at a nonexistent call, a
+        garbage hash, or a non-decision verdict) are ignored: they neither
+        authorize execution nor squat the pending queue.
+        """
+        if entry.get("approval") not in ("approve", "deny"):
+            return False
+        holds = self._holds_by_id(entries)
+        original = holds.get(entry.get("approval_of"))
+        if original is None:
+            return False
+        try:
+            expected = args_hash(original.get("tool", ""),
+                                 original.get("arguments", {}),
+                                 original.get("metadata", {}))
+        except Exception:
+            return False
+        return entry.get("args_hash") == expected
+
     def _entries(self) -> list[dict]:
         return self.audit.tail(self.window)
 
     def pending(self) -> list[dict]:
         entries = self._entries()
-        decided = {e.get("approval_of") for e in entries if e.get("approval_of")}
+        decided = {e.get("approval_of") for e in entries
+                   if self._approval_valid(e, entries)}
         out = []
         for e in entries:
             if e.get("decision") != Decision.REQUIRE_APPROVAL.value:
@@ -65,7 +93,9 @@ class ApprovalQueue:
         original = self._find_original(call_id)
         if original.get("decision") != Decision.REQUIRE_APPROVAL.value:
             raise ValueError(f"call {call_id} is not held for approval")
-        if original.get("call_id") in {e.get("approval_of") for e in self._entries()}:
+        entries = self._entries()
+        if any(e.get("approval_of") == original.get("call_id")
+               and self._approval_valid(e, entries) for e in entries):
             raise ValueError(f"call {call_id} already decided")
         entry = {
             "ts": _utcnow(),
@@ -73,6 +103,7 @@ class ApprovalQueue:
             "tool": original.get("tool"),
             "arguments": original.get("arguments"),
             "source": "user",
+            "metadata": original.get("metadata", {}),
             "decision": Decision.REQUIRE_APPROVAL.value,
             "fail_closed": False,
             "reasons": original.get("reasons", []),
@@ -80,7 +111,8 @@ class ApprovalQueue:
             "metadata": {"approver": approver},
             "approval_of": call_id,
             "args_hash": args_hash(original.get("tool", ""),
-                                   original.get("arguments", {})),
+                                   original.get("arguments", {}),
+                                   original.get("metadata", {})),
             "approval": verdict,
         }
         with self.audit._lock:
@@ -93,10 +125,11 @@ class ApprovalQueue:
         fresh = shield.check(call)
         if fresh.decision is Decision.DENY:
             return False, "fresh check denies: execution refused"
-        wanted = args_hash(call.tool_name, call.arguments)
+        wanted = args_hash(call.tool_name, call.arguments, call.metadata)
         for e in self._entries():
             if (e.get("approval_of") and e.get("approval") == "approve"
-                    and e.get("args_hash") == wanted):
+                    and e.get("args_hash") == wanted
+                    and self._approval_valid(e, self._entries())):
                 if fresh.decision is Decision.ALLOW:
                     return True, "fresh check allows"
                 return True, "human approval matches exact arguments"

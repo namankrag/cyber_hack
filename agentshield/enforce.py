@@ -24,6 +24,7 @@ the call arguments — see provenance.py.
 from __future__ import annotations
 
 import functools
+import inspect
 from typing import Any, Callable
 
 from .engine_factory import AgentShield
@@ -54,10 +55,11 @@ def guard(
 
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        context = str(kwargs.get(context_arg, "")) if context_arg else ""
+        argmap = _bind_arguments(fn, args, kwargs)
+        context = str(argmap.get(context_arg, "")) if context_arg else ""
         call = ToolCall(
             tool_name=tool_name,
-            arguments={k: v for k, v in kwargs.items() if k != context_arg},
+            arguments={k: v for k, v in argmap.items() if k != context_arg},
             source=resolve(),            # trusted state only; defaults UNTRUSTED
             context=context,
             metadata={"pep": "in_process"},
@@ -65,10 +67,46 @@ def guard(
         result = shield.check(call)
         if result.decision is not Decision.ALLOW:
             raise PolicyViolation(result)
-        return fn(*args, **kwargs)
+        try:
+            return fn(*args, **kwargs)
+        except PolicyViolation as exc:
+            # The tool body must not forge enforcement verdicts: a block
+            # raised *after* the body ran would contradict the ALLOW audit
+            # record. Surface it loudly instead of letting it pass as a deny.
+            raise RuntimeError(
+                "tool body raised PolicyViolation after execution; "
+                "verdict forgery is not permitted") from exc
 
     wrapper.__agentshield_guarded__ = True  # type: ignore[attr-defined]
+    try:
+        del wrapper.__wrapped__  # type: ignore[attr-defined]
+    except AttributeError:
+        pass
     return wrapper
+
+
+def _bind_arguments(fn: Callable[..., Any], args: tuple, kwargs: dict) -> dict:
+    """Map positional args to parameter names so payloads cannot dodge scan.
+
+    The guard previously built the ToolCall from kwargs only, so an
+    injection passed positionally never reached the detectors or the audit
+    log. Positional values are bound to the wrapped function's parameter
+    names (best effort); anything unmappable keeps an arg{i} name.
+    """
+    try:
+        params = list(inspect.signature(fn).parameters.values())
+    except (ValueError, TypeError):
+        params = []
+    names = [p.name for p in params
+             if p.kind in (inspect.Parameter.POSITIONAL_ONLY,
+                           inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+    bound: dict[str, Any] = {}
+    for i, value in enumerate(args):
+        bound[names[i] if i < len(names) else f"arg{i}"] = value
+    bound.update(kwargs)
+    bound.pop("self", None)
+    bound.pop("cls", None)
+    return bound
 
 
 def enforced(shield: AgentShield, tool_name: str, **kw):

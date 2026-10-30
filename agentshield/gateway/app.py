@@ -49,7 +49,7 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
 
 
 class CheckRequest(BaseModel):
-    tool_name: str
+    tool_name: str = Field(min_length=1)
     arguments: dict = Field(default_factory=dict)
     # A caller may *assert* a source, but it is only honored with a valid
     # provenance_token (minted from the server-side harness secret). Otherwise

@@ -73,4 +73,7 @@ class Policy(BaseModel):
     tools: dict[str, ToolPolicy] = Field(default_factory=dict)
 
     def for_tool(self, name: str) -> ToolPolicy | None:
-        return self.tools.get(name)
+        key = name.strip().lower() if isinstance(name, str) else name
+        if not key:
+            return None
+        return self.tools.get(key)

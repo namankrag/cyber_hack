@@ -15,6 +15,7 @@ Security notes (from review):
 from __future__ import annotations
 
 import json
+import re
 import os
 import threading
 from pathlib import Path
@@ -30,17 +31,43 @@ class AuditLog:
                  redact_keys: list[str] | None = None) -> None:
         self.path = Path(path)
         self.redact_keys = {k.lower() for k in (redact_keys or [])}
+        self._normalized_redact = {
+            re.sub(r"[-_\s]", "", k) for k in self.redact_keys}
         self._lock = threading.Lock()  # safe under the async gateway's threadpool
 
     # --- redaction ---------------------------------------------------------
+    # Substring fragments that always mark a key as sensitive, even inside
+    # compound names (api_secret, password_hash, access_token, ...).
+    _SENSITIVE_FRAGMENTS = ("secret", "password", "passwd", "credential",
+                            "token", "apikey", "privatekey")
+
+    def _sensitive(self, key: str) -> bool:
+        k = key.lower()
+        if k in self.redact_keys:
+            return True
+        n = re.sub(r"[-_\s]", "", k)
+        if n in self._normalized_redact:
+            return True
+        return any(f in n for f in self._SENSITIVE_FRAGMENTS)
     def _redact(self, value: Any) -> Any:
         if isinstance(value, dict):
             return {
-                k: (_REDACTED if k.lower() in self.redact_keys else self._redact(v))
+                k: (_REDACTED if self._sensitive(k) else self._redact(v))
                 for k, v in value.items()
             }
         if isinstance(value, list):
             return [self._redact(v) for v in value]
+        if isinstance(value, str):
+            # Secrets hidden inside JSON-encoded blobs: parse, redact, re-dump.
+            s = value.strip()
+            if len(s) >= 2 and s[0] in "{[":
+                try:
+                    parsed = json.loads(s)
+                except Exception:
+                    return value
+                if isinstance(parsed, (dict, list)):
+                    return json.dumps(self._redact(parsed), default=str)
+        return value
         return value
 
     def record(self, result: EnforcementResult) -> None:

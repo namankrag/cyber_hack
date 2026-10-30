@@ -59,7 +59,7 @@ class ToolCall(BaseModel):
     """A single action the agent wants to take through a tool."""
 
     id: str = Field(default_factory=lambda: f"call_{uuid.uuid4().hex[:12]}")
-    tool_name: str
+    tool_name: str = Field(min_length=1)
     arguments: dict[str, Any] = Field(default_factory=dict)
 
     # Provenance of the instruction that led here. Defaults to UNTRUSTED so
