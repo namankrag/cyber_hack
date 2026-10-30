@@ -4,3 +4,7 @@ __pycache__/
 audit.log.jsonl
 .pytest_cache/
 *.egg-info/
+
+# SecureAI platform
+secureai_dashboard.html
+secureai_dashboard.json

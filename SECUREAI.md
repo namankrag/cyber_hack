@@ -1,0 +1,85 @@
+# 🛡️ SecureAI Platform — guard the agent + harden its tools
+
+SecureAI unifies the two projects in this repo into one security platform for
+AI agents, defending at **two layers**:
+
+- **Runtime — AgentShield (PS-1).** Guards a *running* agent at the tool-call
+  boundary: allow / hold-for-approval / block, with inspectable reasons.
+- **Code — PatchProof (PS-2).** Finds, exploit-confirms, patches, and verifies
+  vulnerabilities in the *code the agent's tools run on*.
+
+The integration layer lives in [`secureai/`](secureai/).
+
+## Why together (not two unrelated tools)
+
+AgentShield decides **which tool calls are allowed**. Those tools are *code* —
+and tool/MCP-server code is a common source of real vulnerabilities. SecureAI
+defends the **same asset from both sides**:
+
+```
+   Agent ──calls──►  [ AgentShield ]  ──allowed──►  Tool
+                     runtime boundary               (its code)
+                           │                           ▲
+                      blocks attack                    │
+                           │                    [ PatchProof ]
+                           └────── bridge ──────► scan • prove • patch • verify
+```
+
+### The bridge (`secureai/bridge.py`)
+1. **harden_tools()** — runs PatchProof over the implementation of the tools
+   AgentShield governs (a tool→source registry maps each tool to its file).
+2. **runtime → code loop** — when AgentShield **blocks** an attack aimed at a
+   tool, the bridge automatically scans that tool's source for the root cause
+   and surfaces a verified fix, linked back to the runtime block.
+
+### The shared core (`secureai/core.py`)
+Both layers already produce an inspectable, evidence-backed verdict. The core
+maps an AgentShield `EnforcementResult` and a PatchProof `IssueReport` onto one
+`SecurityEvent`, so a single store and dashboard render both.
+
+## Run it
+
+```bash
+pip install -r requirements.txt          # AgentShield deps
+pip install -r patchproof/requirements.txt
+
+# The flagship: run both layers + the bridge, write the unified dashboard
+python -m secureai platform --report secureai_dashboard.html
+
+# Just one layer
+python -m secureai runtime                # AgentShield scenarios
+python -m secureai harden                 # PatchProof over the governed tools
+
+# Tests (AgentShield + SecureAI platform)
+python -m pytest -q
+```
+
+## What a run shows
+
+- **Runtime:** a legit `search_web` is allowed, an injected `read_customer_db`
+  is **blocked**, a genuine `send_email` is **held for approval**.
+- **Bridge:** the block on `read_customer_db` auto-triggers a code scan of its
+  backing service.
+- **Code:** PatchProof confirms + patches + verifies **5 CWE classes**
+  (SQLi, command injection, IDOR, path traversal, XSS) in that service.
+- **Dashboard:** one page, two columns, with each code fix linked to the
+  runtime block that triggered it.
+
+## Note on Semgrep + the MCP SDK (dependency isolation)
+
+AgentShield's MCP gateway needs `mcp` **2.x**; the Semgrep CLI currently imports
+an `mcp` **1.x** module at startup. Both can't load in one environment. The
+platform resolves this gracefully: it keeps `mcp` 2.x, and PatchProof's Semgrep
+adapter **probes whether Semgrep actually runs** and auto-falls back to the
+built-in AST scanner when it can't (the AST engine covers all five CWE classes,
+so nothing is lost). To use Semgrep as a second engine, run PatchProof in its
+own virtualenv (`patchproof/`), where `mcp` 1.x and Semgrep coexist — the
+standard monorepo answer of one venv per subproject.
+
+## Layout (branch `platform`)
+
+```
+agentshield/        PS-1 — runtime enforcement (root)
+patchproof/         PS-2 — find/prove/patch/verify
+secureai/           integration: core.py · bridge.py · platform.py · dashboard.py · cli.py
+```

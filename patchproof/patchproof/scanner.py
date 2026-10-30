@@ -173,7 +173,13 @@ def scan(path: str | Path, engine: str = "auto") -> list[Finding]:
     if engine in ("ast", "both"):
         findings += scan_file(path)
     if engine in ("semgrep", "both"):
-        findings += semgrep_adapter.scan_file(path)
+        try:
+            findings += semgrep_adapter.scan_file(path)
+        except Exception:
+            # Semgrep unavailable/broken in this env (e.g. mcp version clash).
+            # "both"/"auto" degrade to AST; "semgrep" alone re-raises.
+            if engine == "semgrep":
+                raise
 
     # De-duplicate: the same weakness seen by both engines is one finding.
     merged: dict[tuple[str, int], Finding] = {}

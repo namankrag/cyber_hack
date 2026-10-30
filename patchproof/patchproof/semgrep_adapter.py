@@ -40,8 +40,32 @@ _TITLE = {
 }
 
 
+_probe_cache: bool | None = None
+
+
 def available() -> bool:
-    return shutil.which("semgrep") is not None and _RULES.exists()
+    """True only if semgrep is installed AND actually runs here.
+
+    Semgrep's CLI imports an mcp-1.x module at startup; in an environment pinned
+    to mcp 2.x (as AgentShield requires) that import fails. So we probe a real
+    invocation rather than trusting the binary's presence, and let the pipeline
+    fall back to the built-in AST scanner when semgrep can't run. Result cached.
+    """
+    global _probe_cache
+    if _probe_cache is not None:
+        return _probe_cache
+    if shutil.which("semgrep") is None or not _RULES.exists():
+        _probe_cache = False
+        return False
+    try:
+        env = dict(os.environ, SEMGREP_ENABLE_VERSION_CHECK="0",
+                   SEMGREP_SEND_METRICS="off")
+        proc = subprocess.run(["semgrep", "--version", "--disable-version-check"],
+                              capture_output=True, text=True, timeout=30, env=env)
+        _probe_cache = proc.returncode == 0
+    except Exception:  # noqa: BLE001
+        _probe_cache = False
+    return _probe_cache
 
 
 def scan_file(path: str | Path, timeout: int = 120) -> list[Finding]:
