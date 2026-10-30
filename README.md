@@ -276,3 +276,53 @@ callers never touch high-sensitivity tools). Model currency
 (gemini-2.0-flash vs 2.5, groq defaults) and free quotas must be rechecked
 on demo day.
 
+---
+
+## SecureAI (runtime + code)
+
+This branch merges AgentShield with PatchProof remediation - see
+[`SECUREAI.md`](SECUREAI.md) for the full platform doc. Two layers, one bridge:
+
+- **Runtime - AgentShield.** Guards the running agent at the tool-call
+  boundary: ALLOW / REQUIRE_APPROVAL / DENY, fail-closed, every decision
+  inspectable with reasons.
+- **Code - PatchProof.** Finds, exploit-confirms, patches, and verifies
+  vulnerabilities in the code the agent's tools run on.
+- **Bridge (`secureai/bridge.py`).** When the runtime **blocks** an attack on
+  a governed tool, the bridge auto-scans that tool's backing source and links
+  the verified fix back to the runtime block.
+
+Tool-registry boundary: `read_customer_db`, `send_email`, and
+`transfer_funds` are **demo tools** backed by the synthetic VulnBank practice
+service (`patchproof/vulnbank/app.py`), not production systems. Runtime and
+code findings link through the same registered tool name (`TOOL_SOURCES`).
+
+```bash
+pip install -r requirements.txt          # single root requirements (incl. flask)
+# Reproducible, hash-pinned alternative:
+# pip install --require-hashes -r requirements.lock
+
+# Both layers + bridge, unified dashboard.
+# `secureai` is the pyproject console script; without an install use `python -m secureai`.
+# `--engine` defaults to `auto` (AST when Semgrep unavailable); `--report` / `--out-dir` take explicit paths.
+secureai platform --report reports/platform_dashboard.html
+# or: python -m secureai platform --report reports/platform_dashboard.html
+
+# Closed loop: block -> bridge scan -> patch -> verify -> re-attack
+# (CONVERGED in 5 iterations, 5->4->3->2->1->0 confirmed, residual 0;
+#  per-iteration fixes CWE-89, CWE-78, CWE-639, CWE-22, CWE-79, each FIXED & VERIFIED)
+secureai loop --max-iters 8 --report reports/loop_report.json
+
+# Evaluation: 8/8 gates PASSED at threshold 0.5; threshold tune search
+secureai eval --once --out-dir reports
+secureai eval --tune --out-dir reports
+```
+
+Artifacts: `reports/platform_dashboard.html`, `reports/loop_report.json`,
+`reports/scorecard.json` + `reports/scorecard.html`, and
+`reports/tuned/scorecard.json` + `scorecard.html`.
+
+Validate with one root run: `pytest -q` -> **127 passed, 1 skipped** (the
+skip is the Semgrep-engine test; Semgrep is not installed, so the platform
+uses its graceful AST fallback).
+

@@ -1,0 +1,11 @@
+# Core — self-contained, no external services, no API keys
+flask>=3.0.0
+rich>=13.7.0          # demo console output
+pytest>=8.0.0
+
+# Optional — a second, industry-standard SAST engine (AST scanner is default)
+semgrep>=1.80.0
+
+# Optional — AI-assisted patch generation (needs a free API key; see .env.example)
+# google-genai>=0.3.0   # Google Gemini
+# groq>=0.11.0          # Groq

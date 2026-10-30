@@ -21,3 +21,6 @@ langgraph==1.2.18                   # orchestration with HITL interrupt()
 langgraph-checkpoint-sqlite==3.1.2  # durable graph state
 
 httpx>=0.27.0         # for testing the FastAPI endpoint
+
+# --- PatchProof code layer (synthetic VulnBank fixture + isolated sandbox) ---
+flask>=3.0.0              # fixture web app + Flask test client for exploits/regressions

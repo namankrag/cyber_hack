@@ -93,3 +93,22 @@ radius of a successful prompt injection**, not to perfectly detect injections.
 Session/nonce-bound provenance tokens · upstream MCP proxy passthrough ·
 local-model detector (no data egress) · CI + dependency lockfiles ·
 Postgres-backed audit with rotation · OPA policy backend · structured request-id logging.
+
+## SecureAI evaluation and remediation boundary
+
+- **The evaluation dataset is synthetic.** Every scenario uses invented
+  vendors, customers, and accounts (e.g. `synthetic@example.test`); no real
+  data or production system is ever touched.
+- **Only the bundled practice fixture ever executes.** The closed loop runs
+  exploit and regression jobs against `patchproof/vulnbank/app.py` or the
+  loop's isolated temporary copies
+  (`secureai-remediation-*/vulnbank_app.py`) — never against the AgentShield
+  runtime source.
+- **Bounded, fail-closed execution.** Exploit/regression jobs run in a spawned
+  child process with a 10-second deadline; a timeout or error stops the loop
+  with `approval_required` for human review — a failed check is never
+  auto-deployed.
+- **Patches land only in the temp copy.** Accepted patches are written to the
+  isolated loop copy; the source fixture is never modified.
+- **`secureai watch` monitors only that fixture.** It re-runs evaluation when
+  the bundled VulnBank fixture's fingerprint changes, and nothing else.
