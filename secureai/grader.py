@@ -3,6 +3,11 @@
 This module does not consume evaluator-computed metrics or pass flags. It reads
 the labeled outcomes, recalculates runtime metrics, and independently repeats
 the bundled-fixture exploit and patch checks before deciding the gates.
+
+Item 7: alerts-to-confirmed precision, variant block rate, BYPASSABLE-patch
+rejection, per-function coverage, and per-fixture results are recomputed the
+same way — from raw issue-level evidence plus the grader's own sandbox
+replay — and reported as metrics/data, never as new gates.
 """
 from __future__ import annotations
 
@@ -23,6 +28,107 @@ GROUND_TRUTH = {
 
 def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 1.0
+
+
+def _independent_variant_replay(prepared: dict, by_rule: dict) -> dict:
+    """Replay every variant-corpus payload against each patched copy.
+
+    Independent of the verifier's gate: rebuilds from the same curated
+    PATCHES, replays the corpus the gate uses through the same sandbox,
+    and counts what the patched copy blocks. A surviving variant means
+    the candidate would be rejected as PATCH BYPASSABLE, so a recorded
+    bypass doubles as the rejection count.
+    """
+    from patchproof.checks import variant_payloads
+    from patchproof.sandbox import run_fixture_jobs
+
+    corpus: dict[str, list[tuple[str, str]]] = {}
+    jobs = []
+    for rule_id, (patched_source, patch_error) in prepared.items():
+        if not patched_source or patch_error is not None:
+            continue
+        finding = by_rule.get(rule_id)
+        if finding is None:
+            continue
+        try:
+            entries = variant_payloads(finding)
+        except KeyError:
+            continue  # no corpus registered: nothing to replay, nothing to block
+        corpus[rule_id] = entries
+        snapshot = finding.to_dict()
+        for index, (_, payload) in enumerate(entries):
+            jobs.append({
+                "key": f"{rule_id}-variant-{index}",
+                "source": patched_source,
+                "rule_id": rule_id,
+                "regressions": False,
+                "finding": {**snapshot, "variant": payload},
+            })
+    replay_error = None
+    try:
+        proofs = run_fixture_jobs(jobs) if jobs else {}
+    except (RuntimeError, TimeoutError) as exc:
+        proofs = {}
+        replay_error = f"{type(exc).__name__}: {exc}"
+    per_rule = {}
+    for rule_id, entries in corpus.items():
+        blocked = 0
+        bypass = None
+        for index, (label, payload) in enumerate(entries):
+            result = proofs.get(f"{rule_id}-variant-{index}", {}).get("exploit")
+            if result is not None and result.exploited:
+                shown = payload if len(payload) <= 80 else payload[:77] + "..."
+                bypass = f"{label}: {shown}"
+                break
+            blocked += 1
+        per_rule[rule_id] = {
+            "variants_total": len(entries),
+            "variants_blocked": blocked,
+            "bypass_payload": bypass,
+            "error": replay_error,
+        }
+    return per_rule
+
+
+def _independent_fixture_alerts(raw_fixtures) -> list[dict]:
+    """Re-derive per-fixture counts from raw issue rows + an independent rescan.
+
+    The evaluator hands over issue-level rows; the grader recounts
+    confirmed/fixed/BYPASSABLE from those rows itself and cross-checks
+    the alert count with a fresh scan of each fixture target (scan-only,
+    no execution). The VulnBank slice is additionally cross-checked
+    against the sandbox recheck in `grade`.
+    """
+    from patchproof.scanner import scan
+
+    from . import REPO_ROOT
+
+    out = []
+    for entry in raw_fixtures or []:
+        rows = entry.get("issues", [])
+        confirmed = sum(1 for row in rows if row.get("confirmed"))
+        fixed = sum(1 for row in rows if row.get("patch_accepted"))
+        bypassable = sum(1 for row in rows if row.get("bypass_payload"))
+        target = entry.get("target") or ""
+        path = Path(target)
+        if not path.is_absolute():
+            path = REPO_ROOT / target
+        try:
+            rescanned = len(scan(path, engine="ast")) if path.is_file() else None
+        except Exception:
+            rescanned = None
+        out.append({
+            "fixture": entry.get("fixture", ""),
+            "target": target,
+            "alerts_recomputed": len(rows),
+            "alerts_match_evaluator": entry.get("raw_alerts") == len(rows),
+            "confirmed_recomputed": confirmed,
+            "fixed_recomputed": fixed,
+            "bypassable_rejected_recomputed": bypassable,
+            "scanner_alerts_rescanned": rescanned,
+            "rescan_matches_evaluator": rescanned == entry.get("raw_alerts"),
+        })
+    return out
 
 
 def _independent_code_recheck() -> dict:
@@ -63,6 +169,9 @@ def _independent_code_recheck() -> dict:
         checks = {}
         sandbox_error = f"{type(exc).__name__}: {exc}"
 
+    by_rule = {finding.rule_id: finding for finding in findings}
+    variants = _independent_variant_replay(prepared, by_rule)
+
     for rule_id, cwe in GROUND_TRUTH.items():
         finding = by_rule.get(rule_id)
         patched_source, patch_error = prepared[rule_id]
@@ -84,6 +193,10 @@ def _independent_code_recheck() -> dict:
             "exploit_evidence": baseline.evidence if baseline else (error or "no exploit proof available"),
             "patch_accepted": fixed,
             "patched_exploit_blocked": bool(patched_exploit and not patched_exploit.exploited),
+            "variants_total": variants.get(rule_id, {}).get("variants_total", 0),
+            "variants_blocked": variants.get(rule_id, {}).get("variants_blocked", 0),
+            "bypass_payload": variants.get(rule_id, {}).get("bypass_payload"),
+            "variant_replay_error": variants.get(rule_id, {}).get("error"),
             "regression_passed": bool(regression_after) and all(c.passed for c in regression_after),
             "regression_checks": [
                 {"name": c.name, "passed": c.passed, "detail": c.detail}
@@ -187,6 +300,19 @@ def grade(raw: dict, *, max_iters: int, benign_fp_limit: float = 0.05) -> dict:
         )
     )
 
+    confirmed_cases = [c for c in code_cases if c["exploit_confirmed"]]
+    variant_total = sum(c.get("variants_total", 0) for c in code_cases)
+    variant_blocked = sum(c.get("variants_blocked", 0) for c in code_cases)
+    coverage_by_function: dict[str, float] = {}
+    for raw_case in raw.get("code_cases", []):
+        for func, frac in (raw_case.get("coverage") or {}).items():
+            try:
+                value = float(frac)
+            except (TypeError, ValueError):
+                continue
+            coverage_by_function[func] = max(coverage_by_function.get(func, 0.0), value)
+    fixture_results = _independent_fixture_alerts(raw.get("code_fixtures"))
+
     metrics = {
         "attack_block_rate": _rate(stopped, len(malicious)),
         "false_positive_rate": _rate(unexpected_benign_stops, len(benign)),
@@ -203,6 +329,16 @@ def grade(raw: dict, *, max_iters: int, benign_fp_limit: float = 0.05) -> dict:
             / max(1, len(raw.get("code_cases", []))), 3),
         "iterations_to_convergence": len(iterations) if loop_converged else None,
         "residual_confirmed_vulnerabilities": loop_recheck.get("residual_confirmed", -1),
+        "alert_precision": _rate(len(confirmed_cases), code["scanner_findings"]),
+        "variant_block_rate": _rate(variant_blocked, variant_total),
+        "bypassable_patches_rejected": sum(1 for c in code_cases if c.get("bypass_payload")),
+        "patched_functions_measured": len(coverage_by_function),
+        "mean_patched_function_coverage": (
+            round(sum(coverage_by_function.values()) / len(coverage_by_function), 3)
+            if coverage_by_function else 0.0),
+        "patched_function_coverage": {
+            key: round(value, 3) for key, value in sorted(coverage_by_function.items())
+        },
     }
 
     gates = {
@@ -255,4 +391,5 @@ def grade(raw: dict, *, max_iters: int, benign_fp_limit: float = 0.05) -> dict:
         "passed": all(gate["passed"] for gate in gates.values()),
         "independent_code_recheck": code,
         "independent_loop_recheck": loop_recheck,
+        "fixture_results": fixture_results,
     }

@@ -87,15 +87,120 @@ def _run_runtime_dataset(threshold: float) -> list[dict]:
         return outcomes
 
 
-def _run_code_dataset() -> tuple[list[dict], float]:
-    """Run PatchProof's full find/prove/patch/verify pipeline on its fixture."""
+def _code_fixture_targets() -> list[tuple[str, Path]]:
+    """Every bundled PatchProof fixture, in manifest order (vulnbank, shopapi)."""
+    from patchproof.manifest import load_manifest, patchproof_dir
+
+    root = patchproof_dir()
+    targets = []
+    for fixture_id, entry in load_manifest()["fixtures"].items():
+        for relname in entry.get("files", {}):
+            candidate = root / entry["dir"] / relname
+            if candidate.is_file():
+                targets.append((fixture_id, candidate))
+    return targets
+
+
+def _code_funnel(pipeline) -> dict:
+    """Roll one PipelineResult into funnel/variant/coverage numbers.
+
+    The evaluator's own roll-up from per-issue evidence. The grader
+    recomputes every one of these from raw evidence plus its own
+    sandbox replay and never trusts these numbers.
+    """
+    variants_total = 0
+    variants_blocked = 0
+    bypassable_rejected = 0
+    coverage: dict[str, float] = {}
+    issue_rows = []
+    for issue in pipeline.issues:
+        verification = issue.verification
+        if verification is not None:
+            variants_total += verification.variants_total or 0
+            variants_blocked += verification.variants_blocked or 0
+            if verification.bypass_payload is not None:
+                bypassable_rejected += 1
+            for func, frac in (verification.coverage or {}).items():
+                coverage[func] = max(coverage.get(func, 0.0), float(frac))
+        issue_rows.append({
+            "rule_id": issue.finding.rule_id,
+            "cwe": issue.finding.cwe,
+            "severity": issue.finding.severity.value,
+            "confirmed": issue.confirmed,
+            "status": issue.status,
+            "patch_accepted": bool(verification and verification.accepted),
+            "variants_blocked": verification.variants_blocked if verification else None,
+            "variants_total": verification.variants_total if verification else None,
+            "bypass_payload": verification.bypass_payload if verification else None,
+            "coverage": dict(verification.coverage) if verification else {},
+            "lines_added": verification.lines_added if verification else None,
+            "lines_removed": verification.lines_removed if verification else None,
+            "functions_touched": list(verification.functions_touched) if verification else [],
+        })
+    return {
+        "target": str(pipeline.target),
+        "engine": pipeline.engine,
+        "raw_alerts": pipeline.raw_alerts,
+        "confirmed": pipeline.confirmed,
+        "fixed": pipeline.fixed,
+        "precision_before": round(pipeline.precision_before, 4),
+        "precision_after": round(pipeline.precision_after, 4),
+        "variants_total": variants_total,
+        "variants_blocked": variants_blocked,
+        "bypassable_rejected": bypassable_rejected,
+        "coverage_by_function": coverage,
+        "issues": issue_rows,
+    }
+
+
+def _aggregate_funnel(fixtures: list[dict]) -> dict:
+    """Cross-fixture totals: the whole-repo noise funnel in one row."""
+    raw_alerts = sum(f["raw_alerts"] for f in fixtures)
+    confirmed = sum(f["confirmed"] for f in fixtures)
+    fixed = sum(f["fixed"] for f in fixtures)
+    variants_total = sum(f["variants_total"] for f in fixtures)
+    variants_blocked = sum(f["variants_blocked"] for f in fixtures)
+    coverage: dict[str, float] = {}
+    for fixture in fixtures:
+        for func, frac in fixture["coverage_by_function"].items():
+            key = f"{fixture['fixture']}.{func}"
+            coverage[key] = max(coverage.get(key, 0.0), float(frac))
+    return {
+        "fixtures": len(fixtures),
+        "raw_alerts": raw_alerts,
+        "confirmed": confirmed,
+        "fixed": fixed,
+        "precision_before": round(confirmed / raw_alerts, 4) if raw_alerts else 0.0,
+        "precision_after": 1.0 if confirmed else 0.0,
+        "variants_total": variants_total,
+        "variants_blocked": variants_blocked,
+        "variant_block_rate": round(variants_blocked / variants_total, 4) if variants_total else 1.0,
+        "bypassable_rejected": sum(f["bypassable_rejected"] for f in fixtures),
+        "coverage_by_function": coverage,
+    }
+
+
+def _run_code_dataset() -> tuple[list[dict], float, list[dict]]:
+    """Run PatchProof's full find/prove/patch/verify pipeline on every fixture.
+
+    The VulnBank slice keeps the exact `code_cases` shape the grader's
+    acceptance gates read; the per-fixture funnels carry the new Item-7
+    evidence (precision, variant block rate, BYPASSABLE rejections,
+    per-function coverage) for every bundled app.
+    """
     from patchproof.pipeline import run_pipeline
 
-    target = fixture_path()
     started = time.perf_counter()
-    pipeline = run_pipeline(target, engine="ast", use_ai=False)
+    funnels = []
+    by_rule: dict = {}
+    for fixture_id, target in _code_fixture_targets():
+        pipeline = run_pipeline(target, engine="ast", use_ai=False)
+        funnel = _code_funnel(pipeline)
+        funnel["fixture"] = fixture_id
+        funnels.append(funnel)
+        if fixture_id == "vulnbank":
+            by_rule = {issue.finding.rule_id: issue for issue in pipeline.issues}
     elapsed_ms = (time.perf_counter() - started) * 1000
-    by_rule = {issue.finding.rule_id: issue for issue in pipeline.issues}
     outcomes = []
     for rule_id, cwe in GROUND_TRUTH.items():
         issue = by_rule.get(rule_id)
@@ -119,8 +224,12 @@ def _run_code_dataset() -> tuple[list[dict], float]:
                 for check in verification.regression_after
             ] if verification else [],
             "verification_time_ms": verification.verification_time_ms if verification else 0.0,
+            "variants_blocked": verification.variants_blocked if verification else None,
+            "variants_total": verification.variants_total if verification else None,
+            "bypass_payload": verification.bypass_payload if verification else None,
+            "coverage": dict(verification.coverage) if verification else {},
         })
-    return outcomes, round(elapsed_ms, 3)
+    return outcomes, round(elapsed_ms, 3), funnels
 
 
 def evaluate_once(threshold: float = 0.5, max_iters: int = 8) -> dict:
@@ -128,9 +237,10 @@ def evaluate_once(threshold: float = 0.5, max_iters: int = 8) -> dict:
     if not 0.0 <= threshold <= 1.0:
         raise ValueError("threshold must be between 0 and 1")
     runtime = _run_runtime_dataset(threshold)
-    code, pipeline_ms = _run_code_dataset()
+    code, pipeline_ms, fixtures = _run_code_dataset()
     loop = run_remediation_loop(max_iters=max_iters).to_dict()
-    raw = {"runtime_scenarios": runtime, "code_cases": code, "loop": loop}
+    raw = {"runtime_scenarios": runtime, "code_cases": code,
+           "code_fixtures": fixtures, "loop": loop}
     report = {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -147,6 +257,8 @@ def evaluate_once(threshold: float = 0.5, max_iters: int = 8) -> dict:
         "runtime_scenarios": runtime,
         "code_cases": code,
         "code_pipeline_time_ms": pipeline_ms,
+        "code_fixtures": fixtures,
+        "code_funnel": _aggregate_funnel(fixtures),
         "loop": loop,
     }
     report["grading"] = grade(raw, max_iters=max_iters)
@@ -201,6 +313,26 @@ def scorecard_html(report: dict) -> str:
         f"<td><details><summary>Show diff</summary><pre>{html.escape(c['diff'])}</pre></details></td></tr>"
         for c in report["code_cases"]
     )
+    fixture_rows = "".join(
+        f"<tr><td>{html.escape(f['fixture'])}</td>"
+        f"<td>{f['raw_alerts']}</td><td>{f['confirmed']}</td>"
+        f"<td>{f['fixed']}</td><td>{f['precision_before']:.0%}</td>"
+        f"<td>{f['variants_blocked']}/{f['variants_total']}</td>"
+        f"<td>{f['bypassable_rejected']}</td></tr>"
+        for f in report.get("code_fixtures", [])
+    )
+    funnel = report.get("code_funnel", {})
+    funnel_line = ""
+    if funnel:
+        funnel_line = (
+            f"<p class='muted'>Noise funnel across {funnel['fixtures']} fixture(s): "
+            f"raw alerts <b>{funnel['raw_alerts']}</b> &rarr; confirmed "
+            f"<b>{funnel['confirmed']}</b> &rarr; fixed <b>{funnel['fixed']}</b>; "
+            f"variant block rate <b>{funnel['variant_block_rate']:.0%}</b> "
+            f"({funnel['variants_blocked']}/{funnel['variants_total']}); "
+            f"BYPASSABLE rejections <b>{funnel['bypassable_rejected']}</b> "
+            f"(unconfirmed alerts are dropped, never patched).</p>"
+        )
     loop_rows = "".join(
         f"<tr><td>{i['iteration']}</td><td>{i['confirmed_before']}</td>"
         f"<td>{i.get('confirmed_after', i['confirmed_before'])}</td>"
@@ -227,6 +359,7 @@ def scorecard_html(report: dict) -> str:
 <h2>Metrics</h2><table><tr><th>Metric</th><th>Value</th></tr>{metrics_rows}</table>
 <h2>Runtime scenarios</h2><div class='scroll'><table><tr><th>ID</th><th>Label</th><th>Tool</th><th>Expected</th><th>Actual</th><th>Result</th><th>Inspectable reason</th></tr>{runtime_rows}</table></div>
 <h2>Code cases</h2><div class='scroll'><table><tr><th>CWE</th><th>Rule</th><th>Affected location</th><th>Severity</th><th>Severity rationale</th><th>Patch rationale</th><th>Test status</th><th>Gate</th><th>Minimal diff</th></tr>{code_rows}</table></div>
+<h2>Per-fixture code results</h2>{funnel_line}<div class='scroll'><table><tr><th>Fixture</th><th>Raw alerts</th><th>Confirmed</th><th>Fixed</th><th>Alert precision</th><th>Variants blocked</th><th>BYPASSABLE rejected</th></tr>{fixture_rows}</table></div>
 <h2>Closed-loop trend</h2><table><tr><th>Iteration</th><th>Confirmed before</th><th>Confirmed after</th><th>Status</th><th>Patched CWE</th></tr>{loop_rows}</table>
 {tuning}<p class='muted'>The independent grader re-scanned the bundled fixture and re-ran each exploit, patch, and regression check. Runtime and code samples use synthetic data only.</p>
 </body></html>"""
