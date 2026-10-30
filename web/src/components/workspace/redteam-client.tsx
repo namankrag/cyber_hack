@@ -134,32 +134,18 @@ export function RedteamClient() {
     setFailure(null);
     setResult(null);
 
-    const tool = form.tool_name.trim();
-    if (!tool) {
-      setFormError("A tool name is required.");
-      return;
-    }
-    let parsedArguments: Record<string, unknown>;
-    try {
-      const parsed: unknown = JSON.parse(form.argumentsText || "{}");
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        setFormError("Arguments must be a JSON object.");
-        return;
-      }
-      parsedArguments = parsed as Record<string, unknown>;
-    } catch {
-      setFormError("Arguments are not valid JSON. Fix the payload before running.");
+    if (!selected?.id) {
+      setFormError("Select a scenario first.");
       return;
     }
 
     setRunning(true);
     try {
+      // F5: the harness executes the saved server-side scenario. Only the
+      // scenario id is sent; the trust label comes from the scenario, never
+      // from this browser form.
       const response = await apiPost<RedteamRunResponse>("/v1/redteam/run", {
-        scenario_id: selected?.id,
-        tool_name: tool,
-        arguments: parsedArguments,
-        source: form.source,
-        context: form.context,
+        scenario_id: selected.id,
       });
       setResult(response);
       setHistoryCall(response.on.call_id);
@@ -229,9 +215,10 @@ export function RedteamClient() {
 
       <Banner tone="purple" icon={ShieldCheck}>
         <strong>Isolated harness.</strong> Both runs write to a dedicated red-team
-        audit file, not the main trail, and use fresh in-process runtimes. The source
-        label is submitted to the admin-gated harness for lab simulation; in
-        production provenance comes from a trusted token, never a browser claim.{" "}
+        audit file, not the main trail, and use fresh in-process runtimes. The run
+        executes the saved server-side scenario: the trust label comes from the
+        scenario, never from this browser form. In production provenance comes
+        from a trusted token, never a browser claim.{" "}
         {scenarios.data?.enforcement_note ?? ""}
       </Banner>
 
@@ -378,6 +365,10 @@ export function RedteamClient() {
                     </Banner>
                   ) : null}
 
+                  <p className="ws-hint">
+                    The harness executes the saved server-side scenario. Edits above
+                    are a local preview and are not sent to the gateway.
+                  </p>
                   <div className="ws-between">
                     <button
                       type="button"
@@ -390,7 +381,7 @@ export function RedteamClient() {
                     <button
                       type="submit"
                       className="ws-btn is-primary is-sm"
-                      disabled={running || !form.tool_name.trim()}
+                      disabled={running || !selected}
                     >
                       {running ? (
                         <InlineLoading label="Running both sides" />

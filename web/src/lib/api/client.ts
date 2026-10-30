@@ -127,6 +127,25 @@ export function apiPost<T>(
   );
 }
 
+export interface AdminSessionState {
+  authenticated: boolean;
+  expires_at: number | null;
+  ttl_seconds: number;
+  mode: "password" | "unconfigured";
+}
+
+export function adminLogin(password: string, signal?: AbortSignal): Promise<AdminSessionState> {
+  return apiPost<AdminSessionState>("/admin/login", { password }, signal);
+}
+
+export function adminLogout(signal?: AbortSignal): Promise<{ authenticated: boolean }> {
+  return apiPost<{ authenticated: boolean }>("/admin/logout", {}, signal);
+}
+
+export function adminSession(signal?: AbortSignal): Promise<AdminSessionState> {
+  return apiGet<AdminSessionState>("/admin/session", signal);
+}
+
 export function buildQuery(
   values: Record<string, string | number | boolean | null | undefined>,
 ): string {

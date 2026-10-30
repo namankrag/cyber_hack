@@ -409,6 +409,7 @@ export interface RedteamHistoryResponse {
 export interface EvidenceResponse {
   health: HealthResponse;
   enforced: boolean;
+  manifest_enforced?: boolean | null;
   provenance_dev_mode: boolean;
   entries: AuditEntry[];
 }

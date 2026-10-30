@@ -58,6 +58,7 @@ All variables are **server-side only**. Never rename them with a
 | `AGENTSHIELD_API_URL` | `http://127.0.0.1:8000` | Gateway base URL used by the proxy |
 | `AGENTSHIELD_API_KEY` | empty | Read key forwarded as `X-API-Key` |
 | `AGENTSHIELD_ADMIN_KEY` | empty | Admin key for admin/approval/red-team routes |
+| `ADMIN_PASSWORD` | empty | Browser operator password; verified server-side, issues an httpOnly session cookie |
 
 If the backend has `AGENTSHIELD_API_KEY` / `AGENTSHIELD_ADMIN_KEY` set, mirror
 the same values here. They stay in the Next.js server process.
@@ -71,7 +72,9 @@ web/
 ├─ src/app/
 │  ├─ page.tsx                     # public marketing page
 │  ├─ layout.tsx                   # root layout + fonts + global CSS
-│  ├─ api/[...path]/route.ts       # server-side gateway proxy
+│  ├─ api/[...path]/route.ts       # hardened gateway proxy (allowlist, session, CSRF, 64KB cap)
+│  ├─ api/_lib/proxy-auth.ts       # server-only auth helpers (never import in clients)
+│  ├─ api/admin/login|logout|session/route.ts  # admin session endpoints
 │  ├─ workspace/
 │  │  ├─ layout.tsx                # workspace shell + scoped CSS
 │  │  ├─ page.tsx                  # Overview
@@ -113,18 +116,32 @@ FastAPI gateway  http://127.0.0.1:8000
 
 ### Proxy rules (`src/app/api/[...path]/route.ts`)
 
-- **Allowlist:** only `health`, `ready` and paths under `v1/` are forwarded.
-  Anything else returns `404` without touching the gateway.
+- **Allowlist:** an exact method + route table (see `matchRoute` in
+  `src/app/api/_lib/proxy-auth.ts`) — no prefix matching. Anything else
+  returns `404` without touching the gateway. `POST /v1/approvals/{call_id}`
+  is the only dynamic entry; `.`, `..` and encoded slashes (`%2F`, `%5C`)
+  are rejected with `404`.
+- **Admin session:** `v1/admin*`, `v1/approvals*` and `v1/redteam*` require
+  a valid session cookie, else `401`. Sign in via `POST /api/admin/login`
+  with the server-side `ADMIN_PASSWORD`; the proxy issues an httpOnly,
+  `SameSite=Lax` signed cookie (`GET /api/admin/session` reports state,
+  `POST /api/admin/logout` clears it). The admin key is attached as
+  `X-API-Key` server-side only and is never sent to the browser.
+- **Key selection:** privileged routes use `AGENTSHIELD_ADMIN_KEY` (falling
+  back to the read key); everything else uses `AGENTSHIELD_API_KEY`.
+- **CSRF:** non-`GET` requests with a present `Origin`/`Referer` must match
+  the proxy origin, else `403`. Mutations carrying a body must declare
+  `Content-Type: application/json`, else `415`.
+- **Body cap:** request bodies over 64KB are rejected with `413` (declared
+  size first, then measured bytes).
 - **Query forwarding:** every incoming search param is copied to the upstream
   URL.
-- **Key selection:** `v1/admin*`, `v1/approvals*` and `v1/redteam*` use
-  `AGENTSHIELD_ADMIN_KEY` (falling back to the read key); everything else uses
-  `AGENTSHIELD_API_KEY`. Keys are attached as `X-API-Key` server-side.
 - **No caching:** requests use `cache: "no-store"` and responses are returned
   with `Cache-Control: no-store`.
 - **Timeout:** the upstream request aborts after 12 seconds and returns a
   structured `502` with a `detail` and `hint` instead of a raw network error.
-- **Methods:** `GET`, `POST`, `PUT`, `DELETE` share one forwarding path.
+- **Methods:** `GET`, `POST`, `PUT`, `DELETE` share one forwarding path;
+  only allowlisted combinations are forwarded.
 
 ### Client layer (`src/lib/api/client.ts`)
 
@@ -147,7 +164,8 @@ FastAPI gateway  http://127.0.0.1:8000
 | `unknown` | Anything else |
 
 `failureTitle()` and `failureHint()` translate these into operator-facing
-messages, including which server-side env var to check for `401`/`403`/`502`.
+messages: `401` maps to the administrator-login message (sign in on Settings),
+while `403`/`502` name the server-side env var to check.
 
 ---
 
@@ -201,11 +219,11 @@ Behaviour:
 | `/workspace/threats` | `/v1/threats?limit=500` (detector findings from the audit trail) |
 | `/workspace/approvals` | `/v1/approvals?limit=500`; decisions via `POST /v1/approvals/{call_id}` with `{ verdict, approver }` |
 | `/workspace/policy` | `/v1/policy` (read-only YAML, defaults, evaluation order, digest) |
-| `/workspace/redteam` | `/v1/redteam/scenarios`, `/v1/redteam/history`, `/v1/enforce`; isolated runs via `POST /v1/redteam/run` |
+| `/workspace/redteam` | `/v1/redteam/scenarios`, `/v1/redteam/history`, `/v1/enforce`; isolated scenario runs via `POST /v1/redteam/run` with `{ scenario_id }` (trust label comes from the server scenario) |
 | `/workspace/corpus` | `/v1/corpus`; re-ingest via `POST /v1/admin/reset` |
 | `/workspace/audit` | `/v1/audit?limit=…`, `/v1/approvals?limit=500` |
 | `/workspace/evidence` | `/v1/evidence/reports`, `/v1/evidence?limit=10` |
-| `/workspace/settings` | `/health`, `/ready`, `/v1/enforce`, `/v1/policy`, `/v1/evidence?limit=1`; read/admin capability probes via `/v1/audit?limit=1` and `/v1/redteam/scenarios` |
+| `/workspace/settings` | `/health`, `/ready`, `/v1/enforce`, `/v1/policy`, `/v1/evidence?limit=1`; read/admin capability probes via `/v1/audit?limit=1` and `/v1/redteam/scenarios`; admin sign-in via `POST /api/admin/login` |
 
 ---
 

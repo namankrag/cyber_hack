@@ -8,6 +8,8 @@ import {
   Gauge,
   KeyRound,
   LockKeyhole,
+  LogIn,
+  LogOut,
   Network,
   RefreshCw,
   Scale,
@@ -18,11 +20,13 @@ import {
   Terminal,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   formatNumber,
   formatTimestamp,
 } from "@/lib/api/format";
+import { adminLogin, adminLogout, type AdminSessionState } from "@/lib/api/client";
+import { toApiFailure, type ApiFailure } from "@/lib/api/errors";
 import type {
   AuditResponse,
   EnforceResponse,
@@ -82,13 +86,13 @@ const endpoints = [
   {
     method: "POST",
     path: "/v1/admin/enforce",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Flip the global enforcement switch. Audit-logged.",
   },
   {
     method: "POST",
     path: "/v1/admin/reset",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Re-ingest the packaged RAG corpus. Audit history retained.",
   },
   {
@@ -112,13 +116,13 @@ const endpoints = [
   {
     method: "GET",
     path: "/v1/approvals",
-    auth: "api key",
+    auth: "admin session",
     purpose: "Pending queue, recent human decisions and capabilities.",
   },
   {
     method: "POST",
     path: "/v1/approvals/{call_id}",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Append a single-use, argument-hash-bound human decision.",
   },
   {
@@ -148,19 +152,19 @@ const endpoints = [
   {
     method: "GET",
     path: "/v1/redteam/scenarios",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Built-in attack scenarios for the isolated harness.",
   },
   {
     method: "GET",
     path: "/v1/redteam/history",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Dedicated red-team audit file, separate from the main trail.",
   },
   {
     method: "POST",
     path: "/v1/redteam/run",
-    auth: "admin key",
+    auth: "admin session",
     purpose: "Run one payload with enforcement ON and OFF in fresh runtimes.",
   },
   {
@@ -172,6 +176,9 @@ const endpoints = [
 ] as const;
 
 export function SettingsClient() {
+  const [password, setPassword] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  const [sessionFailure, setSessionFailure] = useState<ApiFailure | null>(null);
   const health = useLiveData<HealthResponse>("/health", { intervalMs: 20_000 });
   const ready = useLiveData<ReadyResponse>("/ready", { intervalMs: 20_000 });
   const enforce = useLiveData<EnforceResponse>("/v1/enforce", { intervalMs: 20_000 });
@@ -185,6 +192,42 @@ export function SettingsClient() {
   const adminProbe = useLiveData<RedteamScenariosResponse>("/v1/redteam/scenarios", {
     intervalMs: 30_000,
   });
+  const session = useLiveData<AdminSessionState>("/admin/session", {
+    intervalMs: 30_000,
+  });
+
+  const signIn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSessionFailure(null);
+    if (!password) {
+      setSessionFailure({
+        kind: "unknown",
+        status: null,
+        message: "Enter the admin password.",
+      });
+      return;
+    }
+    setSigningIn(true);
+    try {
+      await adminLogin(password);
+      setPassword("");
+      await Promise.all([session.refresh(), adminProbe.refresh()]);
+    } catch (error) {
+      setSessionFailure(toApiFailure(error));
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signOut = async () => {
+    setSessionFailure(null);
+    try {
+      await adminLogout();
+      await Promise.all([session.refresh(), adminProbe.refresh()]);
+    } catch (error) {
+      setSessionFailure(toApiFailure(error));
+    }
+  };
 
   const refreshing =
     health.isRefreshing ||
@@ -193,7 +236,8 @@ export function SettingsClient() {
     policy.isRefreshing ||
     evidence.isRefreshing ||
     readProbe.isRefreshing ||
-    adminProbe.isRefreshing;
+    adminProbe.isRefreshing ||
+    session.isRefreshing;
 
   const refreshAll = () => {
     void Promise.all([
@@ -204,6 +248,7 @@ export function SettingsClient() {
       evidence.refresh(),
       readProbe.refresh(),
       adminProbe.refresh(),
+      session.refresh(),
     ]);
   };
 
@@ -306,7 +351,80 @@ export function SettingsClient() {
         />
       </div>
 
-      <div id="health" className="ws-grid ws-grid-main ws-anchor">
+      <Card>
+      <CardHead
+        title="Administrator session"
+        subtitle="Password login backed by an httpOnly signed cookie"
+        icon={LockKeyhole}
+        actions={
+          <StatusBadge tone={session.data?.authenticated ? "ok" : "neutral"}>
+            {session.data?.authenticated ? "signed in" : "signed out"}
+          </StatusBadge>
+        }
+      />
+      <CardBody>
+        <div className="ws-stack">
+          {session.data?.authenticated ? (
+            <div className="ws-between">
+              <span className="ws-hint">
+                Signed in
+                {session.data.expires_at
+                  ? ` · session expires ${formatTimestamp(session.data.expires_at * 1000)}`
+                  : ""}
+                . Privileged proxy routes attach the admin key server-side.
+              </span>
+              <button
+                type="button"
+                className="ws-btn is-sm"
+                onClick={() => void signOut()}
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </div>
+          ) : (
+            <form className="ws-stack-sm" onSubmit={signIn}>
+              <label className="ws-field">
+                <span className="ws-label">Admin password</span>
+                <span className="ws-search">
+                  <input
+                    className="ws-input"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Server-side ADMIN_PASSWORD"
+                    aria-label="Admin password"
+                  />
+                </span>
+                <span className="ws-hint">
+                  Verified by the Next.js server; the password and gateway keys
+                  never leave the server process.
+                </span>
+              </label>
+              <div>
+                <button
+                  type="submit"
+                  className="ws-btn is-primary is-sm"
+                  disabled={signingIn || !password}
+                >
+                  <LogIn className="h-3.5 w-3.5" /> {signingIn ? "Signing in…" : "Sign in"}
+                </button>
+              </div>
+            </form>
+          )}
+          {sessionFailure ? (
+            <Banner tone="error" icon={AlertTriangle}>
+              {sessionFailure.message}
+            </Banner>
+          ) : null}
+          {session.failure ? (
+            <span className="ws-hint">Session check failed: {session.failure.message}</span>
+          ) : null}
+        </div>
+      </CardBody>
+    </Card>
+
+    <div id="health" className="ws-grid ws-grid-main ws-anchor">
         <Card>
           <CardHead
             title="Runtime status"
@@ -420,9 +538,9 @@ export function SettingsClient() {
                   <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
                     The admin-gated probe was rejected. Approvals, enforcement changes,
-                    corpus reset and the Red Team Lab will return 401/403 until{" "}
-                    <code className="ws-mono">AGENTSHIELD_ADMIN_KEY</code> is configured
-                    correctly on the Next.js server.
+                    corpus reset and the Red Team Lab need an administrator session:
+                    sign in below with the admin password. Gateway keys stay on the
+                    Next.js server and are never exposed to the browser.
                   </div>
                 </div>
               ) : null}
@@ -658,7 +776,7 @@ export function SettingsClient() {
                         tone={
                           endpoint.auth === "public"
                             ? "neutral"
-                            : endpoint.auth === "admin key"
+                            : endpoint.auth === "admin session"
                               ? "warn"
                               : "ok"
                         }

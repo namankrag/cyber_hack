@@ -260,6 +260,21 @@ export function EvidenceClient() {
                           <StatusBadge tone="ok">HMAC enforced</StatusBadge>
                         ),
                       },
+                      ...(evidence.data.manifest_enforced === undefined ||
+                      evidence.data.manifest_enforced === null
+                        ? []
+                        : [
+                            {
+                              label: "Manifest",
+                              value: (
+                                <StatusBadge
+                                  tone={evidence.data.manifest_enforced ? "ok" : "warn"}
+                                >
+                                  {evidence.data.manifest_enforced ? "enforced" : "disabled"}
+                                </StatusBadge>
+                              ),
+                            },
+                          ]),
                       {
                         label: "Auth",
                         value: evidence.data.health.auth_required
