@@ -57,6 +57,7 @@ def _verify(target_file: str, original: str, patched_src: str,
         result.verification_time_ms = round((time.perf_counter() - started) * 1000, 3)
         return result
     try:
+        from .checks import variant_payloads
         from .scanner import scan_text
         result.diff = _diff(original, patched_src, target_file)
         fixture = _fixture_of(target_file)
@@ -74,6 +75,30 @@ def _verify(target_file: str, original: str, patched_src: str,
         result.regression_before = checks["baseline"]["regressions"]
         result.patched_exploited = checks["patched"]["exploit"].exploited
         result.regression_after = checks["patched"]["regressions"]
+        # Item-3 variant gate: the original probe is blocked and the app
+        # still works — now replay the whole payload corpus against the
+        # patched copy through the same sandboxed jobs. One surviving
+        # variant rejects the patch as PATCH BYPASSABLE.
+        if (result.baseline_exploited and not result.patched_exploited
+                and result.regression_after_passed):
+            corpus = variant_payloads(finding)
+            result.variants_total = len(corpus)
+            variant_jobs = [
+                {"key": f"variant-{index}", "source": patched_src,
+                 "rule_id": rule_id, "fixture": fixture,
+                 "finding": {**snapshot, "variant": payload},
+                 "findings": all_findings}
+                for index, (_, payload) in enumerate(corpus)
+            ]
+            variant_checks = run_fixture_jobs(variant_jobs)
+            blocked = 0
+            for index, (label, payload) in enumerate(corpus):
+                if variant_checks[f"variant-{index}"]["exploit"].exploited:
+                    shown = payload if len(payload) <= 80 else payload[:77] + "..."
+                    result.bypass_payload = f"{label}: {shown}"
+                    break
+                blocked += 1
+            result.variants_blocked = blocked
     except Exception as exc:  # noqa: BLE001 - surface as ERROR verdict
         result.error = f"{type(exc).__name__}: {exc}"
     finally:

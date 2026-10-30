@@ -30,6 +30,10 @@ class Finding:
     method: str = ""             # e.g. "GET"
     param: str = ""              # tainted request parameter, e.g. "username"
     sink: str = ""               # dangerous operation, e.g. "cursor.execute"
+    # Item-3 variant payload override: when set, the exploit template attacks
+    # with this payload instead of the canned probe (lets the sandboxed gate
+    # replay a whole payload corpus through the same jobs; "" = original).
+    variant: str = ""
 
     def to_dict(self) -> dict:
         """JSON-safe snapshot, carried on sandbox jobs (patched runs included)."""
@@ -47,6 +51,7 @@ class Finding:
             "method": self.method,
             "param": self.param,
             "sink": self.sink,
+            "variant": self.variant,
         }
 
     @classmethod
@@ -66,6 +71,7 @@ class Finding:
             method=data.get("method", ""),
             param=data.get("param", ""),
             sink=data.get("sink", ""),
+            variant=data.get("variant", ""),
         )
 
 
@@ -96,6 +102,12 @@ class VerificationResult:
     patch_rationale: str = ""
     error: str | None = None
     verification_time_ms: float = 0.0
+    # Item-3 variant gate: every corpus payload replayed against the patched
+    # copy must be blocked. The first payload that still exploits names the
+    # bypass (None when all blocked).
+    bypass_payload: str | None = None
+    variants_total: int = 0
+    variants_blocked: int = 0
 
     @property
     def regression_after_passed(self) -> bool:
@@ -105,12 +117,16 @@ class VerificationResult:
     def accepted(self) -> bool:
         """A patch is accepted only if it PROVES both halves:
         the exploit is confirmed then blocked, AND functionality is preserved.
+        Since Item 3, every corpus variant must be blocked too: a surviving
+        variant (bypass_payload set) rejects the patch even when the canned
+        probe is stopped and the app still works.
         """
         return (
             self.error is None
             and self.baseline_exploited          # it was really exploitable
             and not self.patched_exploited       # now it's blocked
             and self.regression_after_passed     # app still works
+            and self.bypass_payload is None      # no variant got through
         )
 
     @property
@@ -123,4 +139,6 @@ class VerificationResult:
             return "PATCH INEFFECTIVE"
         if not self.regression_after_passed:
             return "PATCH BREAKS APP"            # rejected: regression failed
+        if self.bypass_payload is not None:
+            return "PATCH BYPASSABLE"            # rejected: a variant got through
         return "FIXED & VERIFIED"

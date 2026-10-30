@@ -16,6 +16,7 @@ _BADGE = {
     "FIXED & VERIFIED": ("#15803d", "#dcfce7"),
     "PATCH BREAKS APP": ("#b45309", "#fef3c7"),
     "PATCH INEFFECTIVE": ("#b91c1c", "#fee2e2"),
+    "PATCH BYPASSABLE": ("#b91c1c", "#fee2e2"),
     "NOT CONFIRMED (likely false positive)": ("#64748b", "#f1f5f9"),
     "ERROR": ("#b91c1c", "#fee2e2"),
 }
@@ -48,6 +49,9 @@ def to_dict(result: PipelineResult) -> dict:
             ] if v else None,
             "exploit_blocked_after": (not v.patched_exploited) if v else None,
             "accepted": v.accepted if v else None,
+            "variants_blocked": v.variants_blocked if v else None,
+            "variants_total": v.variants_total if v else None,
+            "bypass_payload": v.bypass_payload if v else None,
         })
     return {
         "target": result.target,
@@ -77,6 +81,14 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
         reg_pass = sum(1 for c in reg if c["passed"])
         exploit_line = ("✓ blocked" if it["exploit_blocked_after"]
                         else "✗ still exploitable") if it["confirmed"] else "—"
+        var_line = ""
+        if it.get("variants_total"):
+            var_line = (f"<tr><th>Payload variants</th><td>"
+                        f"{it['variants_blocked']}/{it['variants_total']} "
+                        f"blocked</td></tr>")
+            if it.get("bypass_payload"):
+                var_line += (f"<tr><th>Bypass variant</th><td><code>"
+                             f"{html.escape(it['bypass_payload'])}</code></td></tr>")
         diff_html = (f"<pre class='diff'>{_color_diff(it['diff'])}</pre>"
                      if it["diff"] else "<p class='muted'>no patch applied</p>")
         rows.append(f"""
@@ -96,6 +108,7 @@ def write_html(result: PipelineResult, path: str | Path) -> None:
             <tr><th>Exploit (proof it's real)</th><td>{html.escape(it['exploit_evidence'])}</td></tr>
             <tr><th>Patch rationale</th><td>{html.escape(it['patch_rationale'] or '—')}</td></tr>
             <tr><th>Test status</th><td>exploit after patch: <b>{exploit_line}</b> &nbsp;·&nbsp; regression: <b>{reg_pass}/{len(reg)} passing</b></td></tr>
+            {var_line}
           </table>
           {diff_html}
         </section>""")

@@ -259,26 +259,44 @@ def regression_suite(client, findings: list[Finding | dict] | None = None
 # Exploits: each returns exploited=True if the attack succeeded.
 # --------------------------------------------------------------------------
 
-def _exploit_cwe89(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe89(client, finding: Finding,
+                   payload: str | None = None) -> ExploitResult:
     # Comment out the password check and authenticate as admin.
     f = _shape(finding, "POST")
     param = f.param or "username"
+    probe = payload if payload is not None else _SQLI_PROBE
     body = {"username": "alice", "password": "wrong-on-purpose"}
-    body[param] = _SQLI_PROBE
+    body[param] = probe
     r = _http_post(client, f.route, json=body)
     data = _json(r)
     exploited = _status(r) == 200 and data.get("role") == "admin"
     return ExploitResult(
         exploited,
-        f"POST {f.route} {{{param}: {_SQLI_PROBE!r}}} -> {_status(r)} {data}. "
+        f"POST {f.route} {{{param}: {probe!r}}} -> {_status(r)} {data}. "
         f"{'Authenticated as admin without the password.' if exploited else 'Blocked.'}",
     )
 
 
-def _exploit_cwe639(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe639(client, finding: Finding,
+                   object_id: int | str | None = None) -> ExploitResult:
     # Read another user's object: scan the demo id space for any record whose
-    # owner is not the caller.
+    # owner is not the caller (or test one pinned id when given).
     f = _shape(finding, "GET")
+    if object_id is not None:
+        r = _http_get(client, _fill_route(f.route, object_id),
+                      headers=_AUTH_BEARER_1)
+        body = _json(r)
+        owner = body.get("owner_id")
+        exploited = (_status(r) == 200 and owner is not None
+                     and str(owner) != _IDOR_CALLER_UID)
+        detail = (f"id {object_id} owned by {owner}"
+                  if exploited else f"id {object_id} -> {_status(r)}")
+        return ExploitResult(
+            exploited,
+            f"GET {_fill_route(f.route, object_id)} as user {_IDOR_CALLER_UID} "
+            f"-> {detail}. "
+            f"{'Read another users object.' if exploited else 'Access denied.'}",
+        )
     own: int | None = None
     victim: tuple[int, dict] | None = None
     for oid in _IDOR_OBJECT_IDS:
@@ -303,11 +321,13 @@ def _exploit_cwe639(client, finding: Finding) -> ExploitResult:
     )
 
 
-def _exploit_cwe78(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe78(client, finding: Finding,
+                   payload: str | None = None) -> ExploitResult:
     # Inject a second command via a shell metacharacter.
     f = _shape(finding, "POST")
     param = f.param or "host"
-    payload = f"127.0.0.1; echo {_CMDI_MARKER}"
+    if payload is None:
+        payload = f"127.0.0.1; echo {_CMDI_MARKER}"
     r = _http_post(client, f.route, json={param: payload},
                    headers=_AUTH_BEARER_1)
     data = _json(r)
@@ -319,40 +339,46 @@ def _exploit_cwe78(client, finding: Finding) -> ExploitResult:
     )
 
 
-def _exploit_cwe22(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe22(client, finding: Finding,
+                   payload: str | None = None) -> ExploitResult:
     # Escape the docs directory to read the sibling secret file.
     f = _shape(finding, "GET")
     param = f.param or "name"
-    r = _http_get(client, f.route, params={param: _TRAVERSAL_PROBE})
+    probe = payload if payload is not None else _TRAVERSAL_PROBE
+    r = _http_get(client, f.route, params={param: probe})
     data = _json(r)
     exploited = _status(r) == 200 and _TRAVERSAL_MARKER in data.get("content", "")
     return ExploitResult(
         exploited,
-        f"GET {f.route}?{param}={_TRAVERSAL_PROBE} -> {_status(r)}. "
+        f"GET {f.route}?{param}={probe} -> {_status(r)}. "
         f"{'Leaked a file outside the docs directory.' if exploited else 'Blocked.'}",
     )
 
 
-def _exploit_cwe79(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe79(client, finding: Finding,
+                   payload: str | None = None) -> ExploitResult:
     # Reflected payload returned unescaped = executable in a browser.
     f = _shape(finding, "GET")
     param = f.param or "name"
-    r = _http_get(client, f.route, params={param: _XSS_PROBE})
+    probe = payload if payload is not None else _XSS_PROBE
+    r = _http_get(client, f.route, params={param: probe})
     text = _text(r)
-    exploited = _XSS_PROBE in text          # raw, unescaped reflection
+    exploited = probe in text          # raw, unescaped reflection
     return ExploitResult(
         exploited,
-        f"GET {f.route}?{param}={_XSS_PROBE} -> payload "
+        f"GET {f.route}?{param}={probe} -> payload "
         f"{'reflected unescaped (executes in a browser).' if exploited else 'was escaped.'}",
     )
 
 
-def _exploit_cwe502(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe502(client, finding: Finding,
+                   blob: str | None = None) -> ExploitResult:
     # A crafted pickle that deserializes to the marker string (builtins only:
     # no shell, no imports) proves untrusted bytes reach pickle.loads.
     f = _shape(finding, "POST")
     param = f.param or "blob"
-    blob = base64.b64encode(_pickle.dumps(_PickleMarker())).decode()
+    if blob is None:
+        blob = base64.b64encode(_pickle.dumps(_PickleMarker())).decode()
     r = _http_post(client, f.route, json={param: blob})
     text = _text(r)
     exploited = _PICKLE_MARKER in text
@@ -363,18 +389,20 @@ def _exploit_cwe502(client, finding: Finding) -> ExploitResult:
     )
 
 
-def _exploit_cwe798(client, finding: Finding) -> ExploitResult:
+def _exploit_cwe798(client, finding: Finding,
+                   secret: str | None = None) -> ExploitResult:
     # The scanner records the hardcoded literal in the finding snippet; call
     # the endpoint with it. Success proves the source literal is a live key.
     f = _shape(finding, "GET")
     param = f.param or "api_key"
-    candidates = re.findall(r'"([^"]{4,})"', f.snippet or "")
-    candidates += re.findall(r"'([^']{4,})'", f.snippet or "")
-    if not candidates:
-        raise ValueError(
-            f"exploit template for {f.rule_id}: no credential literal in "
-            "finding.snippet")
-    secret = candidates[0]
+    if secret is None:
+        candidates = re.findall(r'"([^"]{4,})"', f.snippet or "")
+        candidates += re.findall(r"'([^']{4,})'", f.snippet or "")
+        if not candidates:
+            raise ValueError(
+                f"exploit template for {f.rule_id}: no credential literal in "
+                "finding.snippet")
+        secret = candidates[0]
     r = _http_get(client, f.route, params={param: secret})
     data = _json(r)
     exploited = _status(r) == 200 and "error" not in data
@@ -403,4 +431,185 @@ def exploit_for_finding(client, finding: Finding | dict) -> ExploitResult:
     template = EXPLOIT_TEMPLATES.get(resolved.cwe)
     if template is None:
         raise KeyError(f"no exploit template registered for {resolved.cwe}")
+    if resolved.variant:
+        return exploit_variant(client, resolved, resolved.variant)
     return template(client, resolved)
+
+
+# --------------------------------------------------------------------------
+# Item-3 payload-variant corpus: every entry is replayed against each patched
+# copy by the gate, which accepts a patch ONLY if ALL variants are blocked.
+#
+# SQLite/JSON shapes constrain the corpus (documented per CWE): only payloads
+# that actually exploit the vulnerable baseline earn a place for that CWE —
+# a variant that cannot exploit the baseline proves nothing about a patch.
+# Encoded/double-encoded traversal and absolute-path exfiltration are
+# therefore NOT listed: the fixtures single-decode JSON/query params and
+# build docs_dir under a random temp dir, so those shapes fail even on the
+# vulnerable app. The relative-depth family below covers the CWE-22 class.
+# --------------------------------------------------------------------------
+
+#: CWE-89: every payload must authenticate as admin on the vulnerable login
+#: (bare tautologies return alice, a non-admin, so admin-pinned shapes only).
+_SQLI_VARIANTS = [
+    ("comment-space", "admin' --"),
+    ("comment-nospace", "admin'--"),
+    ("comment-trailing-space", "admin' -- "),
+    ("comment-inline-block", "admin'/**/--"),
+    ("tautology-and", "admin' AND 1=1 --"),
+    ("tautology-and-quoted", "admin' AND '1'='1' --"),
+    ("tautology-and-alpha", "admin' AND 'a'='a' --"),
+    ("or-username", "' OR username='admin' --"),
+    ("union-admin", "' UNION SELECT 1,'a','b','admin' --"),
+    ("union-admin-high-id", "' UNION SELECT 999,'x','y','admin' --"),
+    ("union-all-admin", "' UNION ALL SELECT 3,'a','b','admin' --"),
+    ("tautology-tab-comment", "admin'\t--"),
+]
+
+#: CWE-78: every payload must surface the marker via a shell metacharacter.
+#: `{M}` is the marker, filled at use time so corpus and probe stay in sync.
+_CMDI_VARIANTS = [
+    ("semicolon", "127.0.0.1; echo {M}"),
+    ("semicolon-nospace", "127.0.0.1;echo {M}"),
+    ("and", "127.0.0.1 && echo {M}"),
+    ("and-nospace", "127.0.0.1&&echo {M}"),
+    ("pipe", "127.0.0.1 | echo {M}"),
+    ("pipe-nospace", "127.0.0.1|echo {M}"),
+    ("background", "127.0.0.1 & echo {M}"),
+    ("dollar-paren", "$(echo {M})"),
+    ("backticks", "`echo {M}`"),
+    ("newline", "echo {M}\n127.0.0.1"),
+    ("newline-dollar-paren", "$(echo {M})\n127.0.0.1"),
+    ("short-host", "a;echo {M}"),
+]
+
+#: CWE-22: every payload must leak the sibling secret through open().
+_TRAVERSAL_VARIANTS = [
+    ("dotdot", "../vault_secret.txt"),
+    ("dotdot-double-slash", "..//vault_secret.txt"),
+    ("dotdot-dot", ".././vault_secret.txt"),
+    ("dot-dotdot", "./../vault_secret.txt"),
+    ("nested-one", "x/../../vault_secret.txt"),
+    ("redundant-dir", "../docs/../vault_secret.txt"),
+    ("single-letter", "a/../../vault_secret.txt"),
+    ("nested-two", "a/b/../../../vault_secret.txt"),
+    ("dot-nested", "./x/../../vault_secret.txt"),
+    ("nested-two-deep", "sub1/sub2/../../../vault_secret.txt"),
+]
+
+#: CWE-79: every payload must reflect raw (XSS executes in a browser).
+_XSS_VARIANTS = [
+    ("script", "<script>alert(1)</script>"),
+    ("img-onerror", "<img src=x onerror=alert(1)>"),
+    ("svg-onload", "<svg onload=alert(1)>"),
+    ("body-onload", "<body onload=alert(1)>"),
+    ("anchor-javascript", "<a href=javascript:alert(1)>x</a>"),
+    ("iframe-javascript", "<iframe src=javascript:alert(2)>"),
+    ("div-onmouseover", "<div onmouseover=alert(1)>"),
+    ("input-onfocus", "<input onfocus=alert(1) autofocus>"),
+    ("details-ontoggle", "<details open ontoggle=alert(1)>"),
+    ("video-source", "<video><source onerror=alert(1)>"),
+    ("script-case", "<ScRiPt>alert(1)</ScRiPt>"),
+    ("attr-breakout", '" onmouseover="alert(1)'),
+    ("marquee", "<marquee onstart=alert(1)>"),
+]
+
+#: CWE-639: neighbouring/negative/missing ids. Only ids owned by someone
+#: else exploit the baseline (1002 Bob, 1003 admin); the rest are recorded
+#: anyway so the gate also pins that the patch rejects them.
+_IDOR_VARIANTS = [
+    ("neighbour-victim", 1002),
+    ("neighbour-admin", 1003),
+    ("own", 1001),
+    ("missing-low", 999),
+    ("zero", 0),
+    ("negative", -1),
+    ("far", 10000),
+    ("missing", 1004),
+]
+
+#: CWE-798: derived from the literal the scanner recorded in the finding
+#: snippet. Only the exact literal exploits the baseline; near-misses are
+#: recorded so the gate pins that look-alikes stay rejected.
+_SECRET_NEAR_MISSES = [" ", "  ", "\n", "x-wrong"]
+
+
+def _pickle_variant_blobs() -> list[tuple[str, str]]:
+    """Marker-deserializing blobs across pickle protocols and containers."""
+    out: list[tuple[str, str]] = []
+    for proto in range(6):
+        raw = _pickle.dumps(_PickleMarker(), protocol=proto)
+        out.append((f"pickle-proto-{proto}",
+                    base64.b64encode(raw).decode()))
+    out.append(("pickle-list", base64.b64encode(
+        _pickle.dumps([_PICKLE_MARKER], protocol=4)).decode()))
+    out.append(("pickle-dict", base64.b64encode(
+        _pickle.dumps({"k": _PICKLE_MARKER}, protocol=4)).decode()))
+    out.append(("pickle-tuple", base64.b64encode(
+        _pickle.dumps((_PICKLE_MARKER, 7), protocol=2)).decode()))
+    wrapped = base64.b64encode(_pickle.dumps(_PickleMarker())).decode()
+    out.append(("pickle-b64-wrapped", wrapped[:40] + "\n" + wrapped[40:]))
+    return out
+
+
+def _secret_literal(finding: Finding) -> str:
+    candidates = re.findall(r'"([^"]{4,})"', finding.snippet or "")
+    candidates += re.findall(r"'([^']{4,})'", finding.snippet or "")
+    if not candidates:
+        raise ValueError(
+            f"variant corpus for {finding.rule_id}: no credential literal in "
+            "finding.snippet")
+    return candidates[0]
+
+
+def variant_payloads(finding: Finding | dict) -> list[tuple[str, str]]:
+    """(label, payload) corpus for the finding's CWE, shared by both fixtures.
+
+    Payloads are plain strings: for CWE-639 the object id as text, for
+    CWE-502 a base64 blob, otherwise the raw attack input.
+    """
+    f = _as_finding(finding)
+    if f.cwe == "CWE-89":
+        return list(_SQLI_VARIANTS)
+    if f.cwe == "CWE-78":
+        return [(label, tmpl.format(M=_CMDI_MARKER))
+                for label, tmpl in _CMDI_VARIANTS]
+    if f.cwe == "CWE-22":
+        return list(_TRAVERSAL_VARIANTS)
+    if f.cwe == "CWE-79":
+        return list(_XSS_VARIANTS)
+    if f.cwe == "CWE-639":
+        return [(label, str(oid)) for label, oid in _IDOR_VARIANTS]
+    if f.cwe == "CWE-502":
+        return _pickle_variant_blobs()
+    if f.cwe == "CWE-798":
+        literal = _secret_literal(f)
+        near = [(f"near-miss-{i}", literal + suffix)
+                for i, suffix in enumerate(_SECRET_NEAR_MISSES)]
+        return [("exact-literal", literal)] + near + [
+            ("uppercased", literal.upper()),
+            ("truncated", literal[:-1]),
+            ("empty", ""),
+        ]
+    raise KeyError(f"no variant corpus registered for {f.cwe}")
+
+
+def exploit_variant(client, finding: Finding | dict,
+                    payload: str) -> ExploitResult:
+    """Run one corpus payload through the finding's CWE template."""
+    f = _shape(_as_finding(finding))
+    if f.cwe == "CWE-89":
+        return _exploit_cwe89(client, f, payload)
+    if f.cwe == "CWE-78":
+        return _exploit_cwe78(client, f, payload)
+    if f.cwe == "CWE-22":
+        return _exploit_cwe22(client, f, payload)
+    if f.cwe == "CWE-79":
+        return _exploit_cwe79(client, f, payload)
+    if f.cwe == "CWE-639":
+        return _exploit_cwe639(client, f, int(payload))
+    if f.cwe == "CWE-502":
+        return _exploit_cwe502(client, f, payload)
+    if f.cwe == "CWE-798":
+        return _exploit_cwe798(client, f, payload)
+    raise KeyError(f"no exploit template registered for {f.cwe}")

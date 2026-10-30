@@ -100,6 +100,77 @@ PATCH_CMDI = Patch(
     )],
 )
 
+# --- Deliberately WEAK blocklist patches (for the BYPASSABLE demo) --------
+# Each stops the canned probe but falls to a corpus variant; the Item-3 gate
+# rejects them with "PATCH BYPASSABLE" naming the bypassing payload. They are
+# exported for tests only and never enter FIXTURE_PATCHES, so the pipeline
+# can never select them.
+PATCH_SQLI_BLOCKLIST = Patch(
+    rule_id="sqli",
+    rationale="(Intentionally weak) Rejects only the exact known probe "
+              "string — any rephrased tautology or UNION shape sails through.",
+    replacements=[(
+        '''        username = data.get("username", "")
+        password = data.get("password", "")''',
+        '''        username = data.get("username", "")
+        password = data.get("password", "")
+        # WEAK[sqli]: blocklist — rejects the exact known probe only.
+        if username == "admin' --":
+            return jsonify(error="invalid credentials"), 401''',
+    )],
+)
+
+PATCH_CMDI_BLOCKLIST = Patch(
+    rule_id="cmdi",
+    rationale="(Intentionally weak) Rejects ';' and '|' only — &&, $(), "
+              "backticks and newlines still start new commands.",
+    replacements=[(
+        '''        # VULN[cmdi]: CWE-78 — user input flows into a shell command.
+        output = os.popen("echo pinging " + host).read()''',
+        '''        # WEAK[cmdi]: blocklist — rejects ";" and "|" only.
+        if ";" in host or "|" in host:
+            return jsonify(error="invalid host"), 400
+        output = os.popen("echo pinging " + host).read()''',
+    )],
+)
+
+PATCH_XSS_BLOCKLIST = Patch(
+    rule_id="xss",
+    rationale="(Intentionally weak) Filters '<script' (case-insensitive) "
+              "only — event-handler and svg vectors reflect untouched.",
+    replacements=[(
+        '''        # VULN[xss]: CWE-79 — user input reflected into HTML without escaping.
+        return "<h1>Hello %s</h1>" % name''',
+        '''        # WEAK[xss]: blocklist — filters "<script" only.
+        if "<script" in name.lower():
+            return "<h1>Hello traveller</h1>"
+        return "<h1>Hello %s</h1>" % name''',
+    )],
+)
+
+PATCH_PATHTRAV_BLOCKLIST = Patch(
+    rule_id="pathtrav",
+    rationale="(Intentionally weak) Rejects the exact known payload only — "
+              "any rephrased traversal sails through.",
+    replacements=[(
+        '''        # VULN[pathtrav]: CWE-22 — user input used to build a filesystem path.
+        content = open(docs_dir + "/" + name).read()''',
+        '''        # WEAK[pathtrav]: blocklist — rejects the exact known payload.
+        if name == "../vault_secret.txt":
+            return jsonify(error="invalid path"), 400
+        content = open(docs_dir + "/" + name).read()''',
+    )],
+)
+
+#: Weak blocklist patches by rule id (test-only; never pipeline-selected).
+WEAK_PATCHES = {
+    "sqli": PATCH_SQLI_BLOCKLIST,
+    "cmdi": PATCH_CMDI_BLOCKLIST,
+    "xss": PATCH_XSS_BLOCKLIST,
+    "pathtrav": PATCH_PATHTRAV_BLOCKLIST,
+}
+
+
 # --- A knowingly-broken patch (for the gate-rejection demo) ---------------
 PATCH_SQLI_BAD = Patch(
     rule_id="sqli",
