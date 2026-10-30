@@ -1,0 +1,15 @@
+# Render deploy for the AgentShield demo (Docker runtime reads ./Dockerfile).
+# Set AGENTSHIELD_HARNESS_SECRET + AGENTSHIELD_API_KEY in the dashboard (sync: false).
+services:
+  - type: web
+    name: agentshield
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: AGENTSHIELD_HARNESS_SECRET
+        sync: false
+      - key: AGENTSHIELD_API_KEY
+        sync: false
+      - key: AGENTSHIELD_DETECTORS
+        value: heuristic
