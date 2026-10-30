@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 .env
 audit.log.jsonl
+audit.redteam.jsonl
 .pytest_cache/
 *.egg-info/

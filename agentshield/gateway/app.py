@@ -27,9 +27,12 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from ..approval.queue import ApprovalQueue
 from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
 from ..provenance import insecure_dev_mode, resolve
+from . import evidence as evidence_module
+from . import insights, redteam
 
 app = FastAPI(
     title="AgentShield",
@@ -190,3 +193,93 @@ def evidence(limit: int = Query(default=20, ge=1, le=500)) -> dict:
             "enforced": shield.enforce,
             "provenance_dev_mode": insecure_dev_mode(),
             "entries": shield.audit.tail(limit)}
+
+
+# ---------------------------------------------------------------------------
+# Console projections (read-only; derived from the audit trail and policy).
+# These endpoints add no new enforcement logic and do not widen access.
+# ---------------------------------------------------------------------------
+@app.get("/v1/metrics", dependencies=[Depends(require_api_key)])
+def metrics(window: str = Query(default="24h", pattern="^(1h|24h|7d|30d|all)$"),
+            limit: int = Query(default=500, ge=1, le=500)) -> dict:
+    return insights.metrics(shield, window=window, limit=limit)
+
+
+@app.get("/v1/threats", dependencies=[Depends(require_api_key)])
+def threats(limit: int = Query(default=500, ge=1, le=500)) -> dict:
+    return insights.threats(shield, limit=limit)
+
+
+class ApprovalDecision(BaseModel):
+    verdict: str = Field(pattern="^(approve|deny)$")
+    approver: str = Field(default="console-human", min_length=1, max_length=120)
+
+
+@app.get("/v1/approvals", dependencies=[Depends(require_api_key)])
+def approvals(limit: int = Query(default=500, ge=1, le=500)) -> dict:
+    return insights.approvals(shield, limit=limit)
+
+
+@app.post("/v1/approvals/{call_id}", dependencies=[Depends(require_api_admin)])
+def decide_approval(call_id: str, body: ApprovalDecision) -> dict:
+    """Append a single-use, args-hash-bound human decision.
+
+    The backend refuses decisions for unknown calls, calls that are not held,
+    and calls that already have a live decision. The UI must never implement
+    approval state locally.
+    """
+    queue = ApprovalQueue(shield.audit)
+    try:
+        entry = queue.decide(call_id, body.verdict, approver=body.approver)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"entry": entry, "summary": insights.approvals(shield)["summary"]}
+
+
+@app.get("/v1/policy", dependencies=[Depends(require_api_key)])
+def policy() -> dict:
+    return insights.policy_view(shield)
+
+
+@app.get("/v1/tools", dependencies=[Depends(require_api_key)])
+def tools(limit: int = Query(default=500, ge=1, le=500)) -> dict:
+    return insights.tools_view(shield, limit=limit)
+
+
+@app.get("/v1/agents", dependencies=[Depends(require_api_key)])
+def agents(limit: int = Query(default=500, ge=1, le=500)) -> dict:
+    return insights.agents_view(shield, limit=limit)
+
+
+@app.get("/v1/corpus", dependencies=[Depends(require_api_key)])
+def corpus() -> dict:
+    return insights.corpus()
+
+
+@app.get("/v1/redteam/scenarios", dependencies=[Depends(require_api_admin)])
+def redteam_scenarios() -> dict:
+    return insights.scenarios()
+
+
+@app.get("/v1/redteam/history", dependencies=[Depends(require_api_admin)])
+def redteam_history(limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    return redteam.history(limit=limit)
+
+
+@app.post("/v1/redteam/run", dependencies=[Depends(require_api_admin)])
+def redteam_run(body: dict) -> dict:
+    """Run one request through isolated OFF and ON runtimes.
+
+    This is a privileged harness endpoint: source trust is established by the
+    server-side lab, not asserted by an untrusted browser caller. The global
+    enforcement switch is never modified.
+    """
+    try:
+        return redteam.run(shield, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/v1/evidence/reports", dependencies=[Depends(require_api_key)])
+def evidence_reports() -> dict:
+    return evidence_module.reports(shield)

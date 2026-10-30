@@ -1,0 +1,1243 @@
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1280px) {
+  .site .wrap {
+    width: min(1200px, calc(100% - 48px));
+  }
+
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.02fr) minmax(400px, 0.98fr);
+    gap: 20px;
+  }
+
+  .hero-title {
+    font-size: clamp(3.6rem, 6.45vw, 6.4rem);
+  }
+
+  .nav-link {
+    padding: 0 12px;
+  }
+
+  .bento-provenance {
+    padding: 22px;
+  }
+
+  .threat-visual {
+    grid-template-columns: 136px minmax(0, 1fr);
+  }
+
+  .threat-radar {
+    width: 136px;
+    height: 136px;
+  }
+
+  .radar-ring-three {
+    width: 116px;
+    height: 116px;
+  }
+
+  .architecture-diagram {
+    grid-template-columns: minmax(118px, 0.7fr) 54px minmax(280px, 1.5fr) 54px minmax(118px, 0.7fr);
+  }
+}
+
+@media (max-width: 1160px) {
+  .hero-visual {
+    min-height: 590px;
+  }
+
+  .hero-product {
+    width: min(100%, 460px);
+  }
+
+  .hero-blob {
+    width: 370px;
+    height: 370px;
+  }
+
+  .hero-ring {
+    width: 420px;
+    height: 420px;
+  }
+
+  .hero-trust-badge {
+    right: -8px;
+  }
+
+  .hero-policy-card {
+    width: 226px;
+    left: 0;
+  }
+
+  .bento-policy,
+  .bento-approval,
+  .bento-audit {
+    padding: 20px;
+  }
+
+  .security-principles {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .architecture-diagram {
+    grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 30px 4px;
+  }
+
+  .arch-node {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .arch-node-icon {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 0;
+  }
+
+  .arch-node-label {
+    display: none;
+  }
+
+  .arch-node small {
+    margin-top: 0;
+  }
+
+  .arch-connector {
+    width: 28px;
+    height: 32px;
+    justify-self: center;
+    justify-content: center;
+  }
+
+  .arch-connector > span:first-child {
+    width: 1px;
+    height: 100%;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(248, 247, 244, 0.25) 0,
+      rgba(248, 247, 244, 0.25) 3px,
+      transparent 3px,
+      transparent 7px
+    );
+  }
+
+  .arch-connector-label {
+    top: 50%;
+    left: 21px;
+    background: transparent;
+    transform: translateY(-50%);
+  }
+
+  .arch-connector svg {
+    display: none;
+  }
+}
+
+@media (max-width: 1020px) {
+  .nav-desktop {
+    display: none;
+  }
+
+  .nav-mobile {
+    display: flex;
+  }
+
+  .mobile-menu {
+    display: block;
+  }
+
+  .hero {
+    padding-top: 142px;
+  }
+
+  .hero-shape-one {
+    top: 130px;
+    left: -120px;
+  }
+
+  .hero-shape-two {
+    top: 620px;
+    left: auto;
+    right: 2%;
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .hero-copy {
+    max-width: 850px;
+    padding-bottom: 0;
+  }
+
+  .hero-title {
+    font-size: clamp(4.25rem, 10.4vw, 7.3rem);
+  }
+
+  .hero-title-second {
+    padding-left: clamp(0px, 8vw, 70px);
+  }
+
+  .hero-lede {
+    max-width: 35rem;
+  }
+
+  .hero-visual {
+    width: min(680px, 100%);
+    min-height: 660px;
+    margin: 10px auto 0;
+    padding: 22px 48px 45px;
+    justify-content: center;
+  }
+
+  .hero-product {
+    width: min(100%, 520px);
+  }
+
+  .hero-blob {
+    top: 5%;
+    right: calc(50% - 210px);
+    width: 390px;
+    height: 390px;
+  }
+
+  .hero-ring {
+    top: 13%;
+    right: calc(50% - 250px);
+    width: 470px;
+    height: 470px;
+  }
+
+  .hero-sticker {
+    left: 8px;
+    top: 6px;
+  }
+
+  .hero-trust-badge {
+    top: 190px;
+    right: 0;
+  }
+
+  .hero-policy-card {
+    left: 18px;
+    bottom: 8px;
+  }
+
+  .hero-star {
+    top: 90px;
+    left: 25px;
+  }
+
+  .hero-logos {
+    justify-content: center;
+    margin-top: 52px;
+  }
+
+  .logo-strip-label {
+    max-width: none;
+    text-align: center;
+  }
+
+  .logo-strip {
+    justify-content: center;
+    padding-left: 0;
+  }
+
+  .hero-scroll {
+    display: none;
+  }
+
+  .manifesto-section,
+  .security-section,
+  .site-footer {
+    border-radius: 32px 32px 0 0;
+  }
+
+  .manifesto-section {
+    padding: 92px 0 82px;
+  }
+
+  .manifesto-grid {
+    grid-template-columns: 1fr;
+    gap: 42px;
+    margin-top: 52px;
+  }
+
+  .manifesto-copy {
+    max-width: 620px;
+  }
+
+  .section-header,
+  .security-header {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .section-header-copy > p,
+  .security-header-copy > p {
+    max-width: 36rem;
+  }
+
+  .bento-grid {
+    margin-top: 45px;
+  }
+
+  .bento-provenance,
+  .bento-threat {
+    grid-column: span 12;
+    min-height: 0;
+  }
+
+  .bento-policy,
+  .bento-approval {
+    grid-column: span 6;
+  }
+
+  .bento-audit {
+    grid-column: span 12;
+    min-height: 0;
+  }
+
+  .threat-visual {
+    max-width: 480px;
+    grid-template-columns: 160px minmax(0, 1fr);
+    margin-top: 28px;
+  }
+
+  .audit-mini {
+    max-width: 500px;
+  }
+
+  .audit-mini-row {
+    padding: 10px 11px;
+  }
+
+  .hiw-section {
+    margin: 0 10px;
+    padding: 92px 0 90px;
+    border-radius: 32px;
+  }
+
+  .hiw-heading-row {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .hiw-lede {
+    max-width: 34rem;
+  }
+
+  .hiw-layout {
+    grid-template-columns: 1fr;
+    gap: 42px;
+    margin-top: 50px;
+  }
+
+  .hiw-stage {
+    max-width: 650px;
+  }
+
+  .lab-section {
+    padding: 98px 0 105px;
+  }
+
+  .lab-grid {
+    grid-template-columns: 1fr;
+    gap: 46px;
+  }
+
+  .lab-copy {
+    max-width: 660px;
+  }
+
+  .scenario-list {
+    max-width: 620px;
+  }
+
+  .lab-stage {
+    max-width: 710px;
+  }
+
+  .lab-float-card {
+    right: -6px;
+    bottom: -24px;
+  }
+
+  .lab-float-pill {
+    left: -8px;
+  }
+
+  .security-section {
+    padding: 94px 0 100px;
+  }
+
+  .proof-band {
+    grid-template-columns: 1fr;
+  }
+
+  .proof-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1.5px solid var(--ink);
+    border-left: 0;
+  }
+
+  .proof-stats > div {
+    border-right: 1px solid rgba(23, 23, 23, 0.16);
+    border-bottom: 0;
+  }
+
+  .proof-stats > div:last-child {
+    border-right: 0;
+  }
+
+  .docs-section {
+    padding: 96px 0 104px;
+  }
+
+  .docs-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 46px;
+  }
+
+  .docs-copy {
+    max-width: 690px;
+  }
+
+  .docs-stage {
+    max-width: 720px;
+  }
+
+  .demo-card {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-intro {
+    padding-bottom: 34px;
+  }
+
+  .demo-panel {
+    margin-top: 0;
+  }
+
+  .demo-deco {
+    position: absolute;
+    right: 30px;
+    bottom: 28px;
+    margin: 0;
+    opacity: 0.45;
+  }
+
+  .footer-top {
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+
+  .footer-columns {
+    max-width: 680px;
+  }
+
+  .footer-wordmark {
+    margin-top: 32px;
+  }
+}
+
+@media (max-width: 760px) {
+  .site .wrap {
+    width: calc(100% - 36px);
+  }
+
+  .site-nav {
+    inset: 14px 0 auto;
+    padding: 0 14px;
+  }
+
+  .nav-brand {
+    height: 51px;
+    padding: 0 15px;
+  }
+
+  .nav-menu-button {
+    width: 51px;
+    height: 51px;
+  }
+
+  .mobile-menu {
+    top: 67px;
+    left: 14px;
+    right: 14px;
+  }
+
+  .hero {
+    padding-top: 124px;
+  }
+
+  .hero-title {
+    font-size: clamp(3.5rem, 14vw, 6.4rem);
+  }
+
+  .hero-lede {
+    font-size: 15px;
+  }
+
+  .hero-visual {
+    min-height: 590px;
+    padding: 24px 22px 44px;
+  }
+
+  .hero-product {
+    width: min(100%, 480px);
+  }
+
+  .hero-sticker {
+    top: 1px;
+    left: 0;
+    font-size: 6.5px;
+    padding: 8px 10px;
+  }
+
+  .hero-trust-badge {
+    top: 160px;
+    right: -2px;
+    transform: scale(0.88);
+    transform-origin: right center;
+  }
+
+  .hero-policy-card {
+    bottom: 8px;
+    left: 2px;
+    width: 210px;
+    transform: rotate(1.5deg) scale(0.92);
+    transform-origin: left bottom;
+  }
+
+  .hero-star {
+    display: none;
+  }
+
+  .hero-logos {
+    margin-top: 40px;
+    padding: 23px 0 27px;
+  }
+
+  .logo-strip {
+    gap: 22px 30px;
+  }
+
+  .manifesto-section {
+    padding: 75px 0 68px;
+  }
+
+  .manifesto-grid {
+    margin-top: 40px;
+  }
+
+  .compare-head {
+    padding: 13px 15px;
+  }
+
+  .compare-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+    padding: 16px 15px;
+  }
+
+  .compare-state {
+    display: none;
+  }
+
+  .compare-footer {
+    padding: 12px 15px;
+  }
+
+  .truth-strip {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    border-radius: 20px;
+    padding: 17px 18px;
+  }
+
+  .truth-answer {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 2px;
+  }
+
+  .truth-arrow {
+    display: none;
+  }
+
+  .platform-section {
+    padding: 82px 0 90px;
+  }
+
+  .bento-grid {
+    gap: 13px;
+    margin-top: 36px;
+  }
+
+  .bento-card {
+    padding: 19px;
+    border-radius: 20px;
+  }
+
+  .bento-policy,
+  .bento-approval {
+    grid-column: span 12;
+    min-height: 0;
+  }
+
+  .bento-copy {
+    margin-top: 19px;
+  }
+
+  .bento-copy h3 {
+    font-size: 1.5rem;
+  }
+
+  .threat-visual {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .threat-radar {
+    justify-self: center;
+  }
+
+  .threat-line {
+    grid-template-columns: minmax(0, 1fr) 38px;
+  }
+
+  .hiw-section {
+    margin: 0 7px;
+    padding: 74px 0 72px;
+    border-radius: 26px;
+  }
+
+  .hiw-step {
+    grid-template-columns: 25px 32px minmax(0, 1fr);
+    gap: 10px;
+    padding: 18px 2px;
+  }
+
+  .hiw-step.is-active {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .hiw-step-arrow {
+    display: none;
+  }
+
+  .hiw-step-copy strong {
+    font-size: 16px;
+  }
+
+  .hiw-stage-top {
+    padding: 12px;
+  }
+
+  .hiw-visual-wrap {
+    padding: 0 9px 9px;
+  }
+
+  .hiw-visual {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .hiw-visual-head {
+    padding-bottom: 10px;
+  }
+
+  .hiw-stage-bottom {
+    padding: 12px;
+  }
+
+  .lab-section {
+    padding: 82px 0 90px;
+  }
+
+  .lab-float-card,
+  .lab-float-pill {
+    display: none;
+  }
+
+  .lab-toolbar {
+    flex-wrap: wrap;
+    gap: 9px 12px;
+  }
+
+  .lab-toolbar-divider {
+    display: none;
+  }
+
+  .lab-toolbar-spacer {
+    display: none !important;
+  }
+
+  .lab-state {
+    margin-left: auto;
+  }
+
+  .lab-shell-top {
+    padding: 11px 12px;
+  }
+
+  .lab-scroll {
+    padding: 11px;
+  }
+
+  .lab-shell-bottom {
+    padding: 10px 12px;
+  }
+
+  .verdict-main strong {
+    font-size: 27px;
+  }
+
+  .lab-float-card,
+  .lab-float-pill {
+    opacity: 0;
+  }
+
+  .security-section {
+    padding: 76px 0 84px;
+  }
+
+  .architecture-card {
+    padding: 17px;
+    border-radius: 22px;
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+
+  .architecture-head {
+    padding-bottom: 13px;
+  }
+
+  .architecture-head strong {
+    font-size: 11px;
+  }
+
+  .arch-shield {
+    padding: 12px;
+  }
+
+  .arch-modules span {
+    font-size: 5.5px;
+  }
+
+  .architecture-foot {
+    gap: 8px 14px;
+  }
+
+  .security-principles {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .principle-card {
+    padding: 17px;
+  }
+
+  .proof-quote {
+    padding: 24px;
+  }
+
+  .proof-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .proof-stats > div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 11px 18px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(23, 23, 23, 0.16);
+  }
+
+  .proof-stats > div:last-child {
+    border-bottom: 0;
+  }
+
+  .docs-section {
+    padding: 78px 0 88px;
+  }
+
+  .docs-checklist {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .docs-pre {
+    min-height: 290px;
+    font-size: 9px;
+    padding: 16px 13px;
+  }
+
+  .docs-code-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docs-aside-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .docs-aside-link {
+    margin-left: 44px;
+  }
+
+  .demo-section {
+    padding: 54px 0 90px;
+  }
+
+  .demo-card {
+    border-radius: 24px;
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+
+  .demo-intro {
+    padding: 30px 23px 26px;
+  }
+
+  .demo-deco {
+    display: none;
+  }
+
+  .demo-panel {
+    margin: 0 10px 10px;
+    padding: 24px 19px;
+    border-radius: 19px;
+  }
+
+  .demo-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .demo-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .demo-form-footer p {
+    max-width: none;
+  }
+
+  .demo-form-footer .btn {
+    width: 100%;
+  }
+
+  .site-footer {
+    padding: 56px 0 22px;
+    border-radius: 30px 30px 0 0;
+  }
+
+  .footer-columns {
+    grid-template-columns: 1fr 1fr;
+    gap: 30px 22px;
+  }
+
+  .footer-columns > div:last-child {
+    grid-column: span 2;
+  }
+
+  .footer-wordmark > span:first-child {
+    font-size: 18vw;
+  }
+
+  .footer-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .site .wrap {
+    width: calc(100% - 28px);
+  }
+
+  .hero {
+    padding-top: 111px;
+  }
+
+  .hero-kicker {
+    font-size: 8px;
+  }
+
+  .kicker-badge {
+    display: none;
+  }
+
+  .hero-title {
+    margin-top: 22px;
+    font-size: clamp(3.05rem, 15.4vw, 5rem);
+    line-height: 0.87;
+  }
+
+  .hero-title-second {
+    padding-left: 0;
+  }
+
+  .hero-lede {
+    margin-top: 24px;
+    font-size: 14.5px;
+    line-height: 1.62;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+
+  .hero-proof {
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    margin-top: 29px;
+  }
+
+  .hero-proof strong {
+    font-size: 20px;
+  }
+
+  .proof-divider {
+    display: none;
+  }
+
+  .hero-proof > div {
+    min-width: 28%;
+  }
+
+  .hero-visual {
+    min-height: 548px;
+    padding: 22px 7px 36px;
+  }
+
+  .hero-product {
+    transform: rotate(-1deg);
+  }
+
+  .hero-sticker {
+    left: 1px;
+    font-size: 5.7px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .hero-sticker svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .hero-trust-badge {
+    top: 143px;
+    right: -6px;
+    transform: scale(0.74);
+  }
+
+  .hero-policy-card {
+    display: none;
+  }
+
+  .hero-blob {
+    top: 9%;
+    right: calc(50% - 150px);
+    width: 300px;
+    height: 300px;
+  }
+
+  .hero-ring {
+    top: 15%;
+    right: calc(50% - 188px);
+    width: 370px;
+    height: 370px;
+  }
+
+  .logo-strip {
+    justify-content: flex-start;
+    gap: 20px 26px;
+  }
+
+  .logo-strip-label {
+    text-align: left;
+  }
+
+  .manifesto-header .display-xl {
+    font-size: clamp(2.4rem, 11vw, 3.5rem);
+  }
+
+  .manifesto-big {
+    font-size: 1.35rem;
+  }
+
+  .truth-label {
+    width: 100%;
+  }
+
+  .section-header .display-lg,
+  .security-header .display-lg,
+  .docs-copy .display-lg,
+  .demo-intro .display-lg,
+  .lab-copy .display-lg {
+    font-size: clamp(2.35rem, 10.6vw, 3.6rem);
+  }
+
+  .hiw-heading .display-lg {
+    font-size: clamp(2.35rem, 10.4vw, 3.7rem);
+  }
+
+  .hiw-heading .display-lg br {
+    display: block;
+  }
+
+  .hiw-section {
+    margin: 0 5px;
+    padding: 62px 0 60px;
+    border-radius: 22px;
+  }
+
+  .hiw-step {
+    grid-template-columns: 22px 30px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .hiw-step-icon {
+    width: 29px;
+    height: 29px;
+  }
+
+  .hiw-step-copy strong {
+    font-size: 14.5px;
+  }
+
+  .hiw-step-copy > span:last-child {
+    font-size: 10.5px;
+  }
+
+  .hiw-stage-counter {
+    display: none;
+  }
+
+  .hiw-visual {
+    border-radius: 12px;
+  }
+
+  .hiw-visual-head {
+    font-size: 6.5px;
+  }
+
+  .hiw-inspect pre {
+    font-size: 8.5px;
+    padding: 12px;
+  }
+
+  .trust-node strong {
+    font-size: 8px;
+  }
+
+  .trust-node small {
+    font-size: 7px;
+  }
+
+  .trust-badge {
+    font-size: 5px;
+    padding: 2px 4px;
+  }
+
+  .policy-code {
+    font-size: 8px;
+    padding: 12px;
+  }
+
+  .lab-copy .display-lg {
+    font-size: clamp(2.3rem, 10.4vw, 3.4rem);
+  }
+
+  .scenario-button {
+    padding: 10px;
+  }
+
+  .scenario-text strong {
+    font-size: 11px;
+  }
+
+  .scenario-text span {
+    font-size: 8.5px;
+  }
+
+  .lab-toolbar > div:nth-of-type(2) {
+    display: none;
+  }
+
+  .lab-toolbar {
+    padding: 10px 11px;
+  }
+
+  .lab-event-card {
+    padding: 9px;
+  }
+
+  .lab-event-icon {
+    width: 33px;
+    height: 33px;
+  }
+
+  .lab-event-card p {
+    font-size: 11px !important;
+  }
+
+  .verdict-card {
+    padding: 12px;
+  }
+
+  .verdict-main strong {
+    font-size: 23px;
+  }
+
+  .verdict-stamp {
+    width: 42px;
+    height: 42px;
+  }
+
+  .reason-box li {
+    font-size: 7.5px;
+  }
+
+  .lab-shell-bottom > span {
+    display: none !important;
+  }
+
+  .lab-run {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .security-badges span {
+    font-size: 6px;
+  }
+
+  .architecture-card {
+    padding: 13px;
+  }
+
+  .arch-node strong {
+    font-size: 11px;
+  }
+
+  .arch-node small {
+    font-size: 6.5px;
+  }
+
+  .arch-shield-head strong {
+    font-size: 10.5px;
+  }
+
+  .arch-modules {
+    gap: 3px;
+  }
+
+  .arch-modules span {
+    padding: 3px 4px;
+    font-size: 5px;
+  }
+
+  .arch-modules svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .arch-decision {
+    flex-wrap: wrap;
+  }
+
+  .arch-decision .mono-label {
+    width: 100%;
+  }
+
+  .proof-quote blockquote {
+    font-size: 1.12rem;
+  }
+
+  .docs-pre {
+    min-height: 280px;
+    font-size: 8px;
+    line-height: 1.75;
+  }
+
+  .docs-code-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .demo-intro {
+    padding: 27px 19px 22px;
+  }
+
+  .demo-panel {
+    margin: 0 7px 7px;
+    padding: 21px 15px;
+  }
+
+  .demo-success {
+    min-height: 320px;
+  }
+
+  .footer-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-columns > div:last-child {
+    grid-column: auto;
+  }
+
+  .footer-wordmark {
+    margin-top: 26px;
+  }
+
+  .footer-wordmark > span:first-child {
+    font-size: 19.5vw;
+  }
+
+  .footer-bottom > div {
+    gap: 12px;
+  }
+
+  .footer-built {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site *,
+  .site *::before,
+  .site *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .site .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
