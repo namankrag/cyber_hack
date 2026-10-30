@@ -39,6 +39,8 @@ hidden inside content the agent was asked to process — is the #1 LLM risk
 
 ```bash
 pip install -r requirements.txt
+# Reproducible, hash-pinned alternative:
+# pip install --require-hashes -r requirements.lock
 
 # Run the enforcement demo — 5 scenarios, all self-contained
 python -m examples.demo

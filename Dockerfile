@@ -7,8 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/tmp/hf-cache
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements.txt is the declared source; requirements.lock is the
+# pip-compile'd, hash-pinned build input (audit M9). Re-lock with:
+#   pip-compile --generate-hashes requirements.txt -o requirements.lock
+COPY requirements.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY . .
 
 # Pre-warm: download the Chroma ONNX embedding model + verify the policy loads,

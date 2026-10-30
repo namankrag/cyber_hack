@@ -100,8 +100,8 @@ Was: no limiter library or in-app throttle. Fix: fixed-window per-IP middleware 
 ### M8 — Public `/docs` + `/openapi.json` (Informational, E) — FIXED (env-gated)
 Was: world-readable interactive docs. Fix: `AGENTSHIELD_ENABLE_DOCS` (default `1` keeps the judged demo intact; `0` closes `/docs`, `/redoc`, and `/openapi.json`). Verified: `0` → 404 on `/openapi.json`, `1` → 200. Schemas expose only tool shapes, no secrets, either way.
 
-### M9 — Mutable base tag + floor-pin drift (Low/Info, G) — recommendations only
-`python:3.11-slim` floats on patch releases (pin to a digest via Renovate for reproducible builds). `requirements.txt` uses floor pins (`>=`); pip-audit reports no CVEs in them today, but a hashed `requirements.lock` is the permanent fix. One was attempted (pip-compile, isolated venv) but resolution did not complete in the audit window — terminated rather than ship an unverified half-lockfile. Generate it before going live (`pip-compile --generate-hashes requirements.txt -o requirements.lock`), install into a fresh venv, re-run the suite, and only then switch the Dockerfile to it.
+### M9 — Mutable base tag + floor-pin drift (Low/Info, G) — FIXED (lockfile; digest pin remains pre-live advice)
+Was: `python:3.11-slim` floats on patch releases and `requirements.txt` used floor pins (`>=`). Fix: `requirements.lock` generated via `pip-compile --generate-hashes` (270KB, 3,463 lines, 3,035 sha256 hashes, pins e.g. chromadb==1.5.9 / fastapi==0.162.0 / mcp==2.3.0 / langgraph==1.2.18), installed into a pristine venv with `pip install --require-hashes` (hash enforcement on: any tampered wheel fails the build), full suite re-run green in that venv (**101 passed**), and the Dockerfile switched to `COPY requirements.lock` + `pip install --require-hashes`. Remaining pre-live advice: pin the base image to a digest via Renovate. First compile attempt was terminated rather than ship an unverified half-lockfile; this one completed exit 0 and is committed.
 
 ## 4. Independent hunter lane (8 findings, all addressed or scoped)
 
@@ -177,16 +177,16 @@ A (authN/Z): API-key + split admin key, no sessions/JWT/passwords to attack — 
 
 ## 11. Remaining risks, limitations, recommendations
 
-Accepted (documented, contained): chroma CVEs with no fix (server paths unreachable); paraphrase without keywords (LLM layer needs a key; provenance backstop holds); token replay (roadmap: session+nonce+expiry); dev-mode and `ENFORCE=0` (explicit, flagged, logged); checkpoint auth scope and cross-process races (deployment duties); chunked-without-length 413 bypass (infra caps); ephemeral audit on Render free tier (disk/external sink); no in-app rate limiting (edge duty); public `/docs` (demo need; gate in prod); mutable base tag + floor pins (lockfile + digest pin before live).
+Accepted (documented, contained): chroma CVEs with no fix (server paths unreachable); paraphrase without keywords (LLM layer needs a key; provenance backstop holds); token replay (roadmap: session+nonce+expiry); dev-mode and `ENFORCE=0` (explicit, flagged, logged); checkpoint auth scope and cross-process races (deployment duties); chunked-without-length 413 bypass (infra caps); ephemeral audit on Render free tier (disk/external sink); no in-app rate limiting (edge duty); public `/docs` (demo need; gate in prod); mutable base tag (lockfile now shipped and hash-verified — see M9; digest pin before live).
 Not verified: Docker image build (no Docker in sandbox — `.dockerignore` correctness established by inspection of every `COPY` consumer).
-Recommendations in priority order: (1) attach a Render disk for the audit log; (2) generate `requirements.lock` (pip-compile, hashed) before live; (3) edge rate limiting + body caps; (4) pin base image digest (Renovate); (5) `docs_url=None` prod toggle; (6) wire `GEMINI_API_KEY` for the semantic layer; (7) upstream MCP proxy with identical middleware.
+Recommendations in priority order: (1) attach a Render disk for the audit log; (2) edge rate limiting + body caps; (3) pin base image digest (Renovate); (4) `docs_url=None` prod toggle; (5) wire `GEMINI_API_KEY` for the semantic layer; (6) upstream MCP proxy with identical middleware. (`requirements.lock` shipped — former item, now done, see M9.)
 
 ## Final summary
 
 - Total findings (this audit): **17** (M1–M9 + H1–H8).
 - Critical resolved: 0 (none found). High resolved: 0 (none found).
 - Medium resolved: **5** (M2, M3, M4-hardening, H1, H2).
-- Low resolved: **7** (M1, H3, H4, H5, H6, H7 via M2, H8).
-- Accepted/documented without code change: **5** (M5 no-fix CVEs, M6 ephemeral audit, M7 rate limiting, M8 public docs, M9 lockfile/base-pin) + prior red-loop residuals (unchanged, see `RED_LOOP_REPORT.md`).
+- Low resolved: **8** (M1, M9 lockfile, H3, H4, H5, H6, H7 via M2, H8).
+- Accepted/documented without code change: **4** (M5 no-fix CVEs, M6 ephemeral audit, M7 rate limiting, M8 public docs; M9 base-tag digest pin remains pre-live advice) + prior red-loop residuals (unchanged, see `RED_LOOP_REPORT.md`).
 - Not verified: **1** (Docker build effect of `.dockerignore` — inspection-verified only).
 - Build and test status: `pytest` **101 passed**; Semgrep **238 rules / 0 findings / exit 0**; demo **6/6 beats**; re-test probe **ALL PASS**.
