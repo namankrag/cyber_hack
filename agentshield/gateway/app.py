@@ -56,6 +56,8 @@ app = FastAPI(
 
 # Single shared runtime; the engine itself is stateless per call.
 shield = AgentShield()
+# Build the isolated red-team runtimes once at startup (B5), not per run.
+redteam.prime(shield)
 
 
 @app.middleware("http")
@@ -452,11 +454,12 @@ def redteam_history(limit: int = Query(default=20, ge=1, le=100)) -> dict:
 
 @app.post("/v1/redteam/run", dependencies=[Depends(require_api_admin)])
 def redteam_run(body: dict) -> dict:
-    """Run one request through isolated OFF and ON runtimes.
+    """Run one server-side scenario through isolated OFF and ON runtimes.
 
-    This is a privileged harness endpoint: source trust is established by the
-    server-side lab, not asserted by an untrusted browser caller. The global
-    enforcement switch is never modified.
+    This is a privileged harness endpoint: the tool call is built from the
+    server-side scenario definition (scenario_id), never from caller-supplied
+    body fields. The global enforcement switch is never modified. The shared
+    per-minute rate-limit backstop applies here like everywhere else.
     """
     try:
         return redteam.run(shield, body)

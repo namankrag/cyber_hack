@@ -31,14 +31,45 @@ def _redteam_audit_path() -> Path:
     return path
 
 
+_RUNTIMES: dict[tuple[int, bool], AgentShield] = {}
+
+
 def _runtime(shield: AgentShield, enforce: bool) -> AgentShield:
-    cfg = dataclasses.replace(
-        shield.config,
-        audit_path=str(_redteam_audit_path()),
-        api_key=None,
-        admin_key=None,
-    )
-    return AgentShield(config=cfg, enforce=enforce)
+    """Isolated runtimes, built once per gateway shield and reused.
+
+    Both runs write to the dedicated red-team audit file, never the main
+    trail, and the global gateway enforcement switch is never touched.
+    The cache is keyed by shield identity so test/reload-rebuilt gateways
+    get fresh runtimes; it is bounded so stale entries cannot grow it.
+    """
+    key = (id(shield), enforce)
+    runtime = _RUNTIMES.get(key)
+    if runtime is None:
+        cfg = dataclasses.replace(
+            shield.config,
+            audit_path=str(_redteam_audit_path()),
+            api_key=None,
+            admin_key=None,
+        )
+        runtime = AgentShield(config=cfg, enforce=enforce)
+        if len(_RUNTIMES) >= 16:
+            _RUNTIMES.clear()
+        _RUNTIMES[key] = runtime
+    return runtime
+
+
+def prime(shield: AgentShield) -> None:
+    """Build both isolated runtimes once (called at gateway startup)."""
+    _runtime(shield, True)
+    _runtime(shield, False)
+
+
+def _scenario_or_raise(scenario_id: str) -> dict:
+    scenarios = {s["id"]: s for s in insights.scenarios()["scenarios"]}
+    try:
+        return scenarios[scenario_id]
+    except KeyError:
+        raise ValueError(f"unknown scenario_id: {scenario_id!r}") from None
 
 
 def _audit_record(runtime: AgentShield, call_id: str) -> dict | None:
@@ -130,19 +161,29 @@ def _run(runtime: AgentShield, call: ToolCall, enforced: bool) -> dict:
 
 
 def run(shield: AgentShield, payload: dict) -> dict:
-    tool_name = str(payload.get("tool_name") or "").strip()
+    """Execute one server-side scenario through isolated OFF and ON runtimes.
+
+    The tool call is built ONLY from the server-side scenario definition:
+    caller-supplied tool_name/arguments/source/context in the request body
+    are ignored, so an untrusted browser cannot escalate the lab run.
+    """
+    scenario_id = payload.get("scenario_id")
+    if not scenario_id:
+        raise ValueError("scenario_id is required: the harness executes a "
+                         "server-side scenario, never a caller-supplied call")
+    scenario = _scenario_or_raise(str(scenario_id))
+    tool_name = str(scenario.get("tool_name") or "").strip()
     if not tool_name:
-        raise ValueError("tool_name is required")
-    arguments = payload.get("arguments")
+        raise ValueError(f"scenario {scenario_id!r} has no tool_name")
+    arguments = scenario.get("arguments")
     if not isinstance(arguments, dict):
         arguments = {}
-    context = str(payload.get("context") or "")
-    scenario_id = payload.get("scenario_id")
-    source_raw = str(payload.get("source") or "untrusted")
+    context = str(scenario.get("context") or "")
+    source_raw = str(scenario.get("source") or "untrusted")
     try:
         source = TrustLevel(source_raw)
     except ValueError as exc:
-        raise ValueError(f"invalid source: {source_raw}") from exc
+        raise ValueError(f"invalid scenario source: {source_raw}") from exc
 
     run_id = f"rt_{secrets.token_hex(6)}"
     metadata = {
