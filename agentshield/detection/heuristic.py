@@ -43,6 +43,16 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
      0.4, "authority / override keyword"),
     (re.compile(r"(base64|fromCharCode|\\x[0-9a-f]{2}|%[0-9a-f]{2}){3,}", re.I),
      0.35, "obfuscated / encoded payload"),
+    (re.compile(r"\b(pichhle|pichhli|purane|upar\s+(ke|wale|vale))\b.{0,40}\b(nirdesh|aadesh|instruction)\b.{0,40}\b(bhool|bhul|ignore)\b|\b(bhool|bhul|ignore)\b.{0,40}\b(nirdesh|aadesh|instruction)\b", re.I),
+     0.6, "override: transliterated Hindi ('pichhle nirdesh bhool jao')"),
+    (re.compile(r"\btum\s+(ab(\s+se)?|abhi)\b.{0,40}\b(ho|ban|bano|role|nirdesh|aadesh)\b", re.I),
+     0.35, "persona reassignment Hindi ('tum ab se...')"),
+    (re.compile(r"\b(muncheya|munche|hindina|meelina)\b.{0,40}\b(soochane|nirdesh)\b.{0,40}\b(marethu|marthu|ignore)\b|\b(marethu|marthu)\b.{0,40}\b(soochane|nirdesh)\b", re.I),
+     0.6, "override: transliterated Kannada ('soochane marethu')"),
+    (re.compile(r"\bupi\b.{0,40}\b(pay|send|transfer|bhej|bhejo)\b|\b(pay|send|transfer|bhej)\b.{0,40}([\w.\-]{2,}@(ok\w+|ybl|ibl|paytm|upi)|upi://pay)|\bupi://pay\b", re.I),
+     0.55, "UPI payment-target exfil (VPA / upi://pay + pay verb)"),
+    (re.compile(r"\b(kisi\s+ko|kisko)\s+(mat\s+)?(batao|batana|bata|kaho)\b|\b(chhupao|chhupana|gupt|gupth)\b|\byaarigu\s+helabed[ai]\b", re.I),
+     0.5, "secrecy Hindi/Kannada ('kisi ko mat batao', 'yaarigu helabedi')"),
 ]
 
 

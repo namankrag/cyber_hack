@@ -6,7 +6,7 @@ pyyaml>=6.0.1
 rich>=13.7.0          # pretty console output for the demo
 
 # --- MCP gateway: protocol-layer enforcement (official MCP SDK) ---
-mcp>=2.0.0            # Model Context Protocol server + client; pulls in anyio
+mcp==2.3.0            # Model Context Protocol server + client; pulls in anyio
 
 # --- Optional LLM-based detection layer (needs a free API key) ---
 # Uncomment the provider you use. The core runs fine without these.
