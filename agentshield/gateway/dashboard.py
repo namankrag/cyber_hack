@@ -8,6 +8,8 @@ written to this file, baked into responses, or logged.
 from __future__ import annotations
 
 import json as _json
+import os as _os
+from pathlib import Path as _Path
 
 # The 4 PS1 scenarios (synthetic data only), fired by the page through the
 # real enforcement path (POST /v1/check). Single source of truth: the page
@@ -39,6 +41,31 @@ SCENARIOS: dict[str, dict] = {
 
 EXPECTED: dict[str, str] = {"legit": "allow", "injected": "deny",
                             "sensitive": "deny", "beyond": "require_approval"}
+
+
+def bench_dir() -> _Path:
+    """Directory holding cases.jsonl and results_*.json.
+
+    Overridable via AGENTSHIELD_BENCH_DIR so tests can point at a tmp dir.
+    """
+    override = _os.getenv("AGENTSHIELD_BENCH_DIR")
+    if override:
+        return _Path(override)
+    return _Path(__file__).resolve().parent.parent.parent / "bench"
+
+
+def latest_bench_results() -> dict | None:
+    """Newest bench/results_*.json payload, or None when no run exists yet."""
+    try:
+        files = sorted(bench_dir().glob("results_*.json"))
+    except OSError:
+        return None
+    if not files:
+        return None
+    try:
+        return _json.loads(files[-1].read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 _PAGE_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -100,6 +127,11 @@ ul.reasons{margin:4px 0;padding-left:16px}ul.reasons li{margin:2px 0}
 <button data-sc="beyond" type="button">4 · Beyond-permission call</button>
 </div>
 <div id="scResult" class="muted" style="margin-top:8px"></div>
+</div>
+
+<div class="panel">
+<h2>Benchmark (latest OFF-vs-ON scorecard)</h2>
+<div id="bench"><span class="muted">No benchmark results yet — run scripts/benchmark.py.</span></div>
 </div>
 
 <div class="panel">
@@ -268,8 +300,37 @@ async function refresh() {
   } catch (e) { /* feed already reports errors */ }
 }
 
+async function refreshBench() {
+  try {
+    const r = await fetch("/v1/bench/latest", {headers: headers(false)});
+    if (!r.ok) return;
+    const j = await r.json();
+    const box = document.getElementById("bench");
+    if (!j.latest || !j.latest.summary) {
+      box.innerHTML = '<span class="muted">No benchmark results yet — run scripts/benchmark.py.</span>';
+      return;
+    }
+    const s = j.latest.summary;
+    const pct = v => v == null ? "n/a" : (v * 100).toFixed(1) + "%";
+    const lat = s.latency_ms_on || {};
+    box.innerHTML = "<table><thead><tr><th>Metric</th><th>OFF</th><th>ON</th></tr></thead><tbody>" +
+      "<tr><td>attack success (malicious allowed)</td><td>" + pct(s.attack_success_off) +
+      "</td><td>" + pct(s.attack_success_on) + "</td></tr>" +
+      "<tr><td>false positives (benign denied)</td><td>—</td><td>" +
+      pct(s.false_positive_rate_benign) + "</td></tr>" +
+      "<tr><td>false holds (benign held)</td><td>—</td><td>" +
+      pct(s.false_hold_rate_benign) + "</td></tr>" +
+      "<tr><td>latency p50/p95/p99 ms (ON)</td><td>—</td><td>" +
+      lat.p50 + " / " + lat.p95 + " / " + lat.p99 + "</td></tr>" +
+      "</tbody></table><div class='mono'>" + esc(j.latest.generated_at_utc || "") +
+      " · " + s.n_total + " cases</div>";
+  } catch (e) { /* feed status already reports errors */ }
+}
+
 refresh();
+refreshBench();
 setInterval(refresh, 2000);
+setInterval(refreshBench, 10000);
 </script>
 </body>
 </html>

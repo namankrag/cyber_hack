@@ -337,3 +337,11 @@ def evidence(limit: int = Query(default=20, ge=1, le=500)) -> dict:
             "enforced": shield.enforce,
             "provenance_dev_mode": insecure_dev_mode(),
             "entries": shield.audit.tail(limit)}
+
+
+@app.get("/v1/bench/latest", dependencies=[Depends(require_api_key)])
+def bench_latest() -> dict:
+    """Newest benchmark scorecard (bench/results_*.json), if any run exists."""
+    from .dashboard import latest_bench_results
+
+    return {"latest": latest_bench_results()}
