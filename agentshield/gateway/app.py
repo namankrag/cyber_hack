@@ -116,3 +116,58 @@ def check(req: CheckRequest) -> CheckResponse:
 def audit(limit: int = Query(default=20, ge=1, le=500)) -> dict:
     """Recent decisions (auth-gated; bounded)."""
     return {"entries": shield.audit.tail(limit)}
+
+
+class EnforceUpdate(BaseModel):
+    enabled: bool
+
+
+@app.get("/v1/enforce", dependencies=[Depends(require_api_key)])
+def enforce_state() -> dict:
+    """Current enforcement switch (demo OFF/ON theater)."""
+    return {"enforced": shield.enforce}
+
+
+@app.post("/v1/admin/enforce", dependencies=[Depends(require_api_key)])
+def set_enforce(body: EnforceUpdate) -> dict:
+    """Flip the demo OFF/ON switch. Key-gated and audit-logged."""
+    import json as _json
+    import secrets as _secrets
+    import time as _time
+
+    shield.enforce = body.enabled
+    note = {
+        "ts": _time.time(),
+        "call_id": f"admin_{_secrets.token_hex(6)}",
+        "tool": "admin",
+        "arguments": {"action": "set_enforce", "enabled": body.enabled},
+        "source": "user",
+        "decision": "require_approval",
+        "fail_closed": False,
+        "reasons": [{"rule": "admin_action",
+                     "decision": "require_approval",
+                     "detail": f"enforcement {'enabled' if body.enabled else 'disabled'} via admin API"}],
+        "detections": [],
+        "metadata": {"actor": "admin-api"},
+    }
+    with shield.audit._lock:
+        with shield.audit.path.open("a", encoding="utf-8") as fh:
+            fh.write(_json.dumps(note) + "\n")
+    return {"enforced": shield.enforce}
+
+
+@app.post("/v1/admin/reset", dependencies=[Depends(require_api_key)])
+def reset_demo() -> dict:
+    """Reset demo state: re-ingest the RAG corpus. Audit history is kept."""
+    from ..rag.store import default_store
+
+    n = default_store().ingest()
+    return {"reset": True, "corpus_docs": n}
+
+
+@app.get("/v1/evidence", dependencies=[Depends(require_api_key)])
+def evidence(limit: int = Query(default=20, ge=1, le=500)) -> dict:
+    """Evidence pack for judges: health, switch state, recent audit entries."""
+    return {"health": health(),
+            "enforced": shield.enforce,
+            "entries": shield.audit.tail(limit)}
