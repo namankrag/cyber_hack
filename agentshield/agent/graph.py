@@ -92,17 +92,29 @@ def _record_verdict(config, decision: str) -> None:
     if tid is None:
         return
     if len(_verdicts) > 512:
-        _verdicts.clear()
+        # Drop the oldest tenth, not everything: bounded memory without
+        # handing one chatty thread a global veto-kill switch. (A missing
+        # pin at finalize time still fails closed; see _verdict_drift.)
+        for old in list(_verdicts)[: max(1, len(_verdicts) // 10)]:
+            del _verdicts[old]
     _verdicts[tid] = decision
 
 
 def _verdict_drift(config, state: AgentState) -> str | None:
-    """Veto when the checkpointed decision differs from the recorded one."""
+    """Veto decision drift — and missing pins.
+
+    decide() always records before finalize() can run in the same process,
+    so a thread with no pin means eviction, a restart, or tampering: fail
+    closed. (Multi-process failover therefore needs sticky sessions or a
+    shared verdict store, as documented.)
+    """
     tid = _thread_id(config)
     if tid is None:
         return None
     recorded = _verdicts.get(tid)
-    if recorded is not None and state.get("decision") != recorded:
+    if recorded is None:
+        return "denied"
+    if state.get("decision") != recorded:
         return "denied"
     return None
 

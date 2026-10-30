@@ -41,7 +41,8 @@ import mcp.types as mcp_types
 from mcp.server.mcpserver import MCPServer
 
 from ..engine_factory import AgentShield
-from ..models import Decision, ToolCall
+from ..models import Decision, EnforcementResult, PolicyReason, ToolCall
+from . import input_too_large
 from ..provenance import resolve
 
 _TAG = "_agentshield"
@@ -78,8 +79,27 @@ class EnforcementMiddleware:
             tag = {}
         source = resolve(tag.get("source"), tag.get("token"))
         context = str(tag.get("context", ""))
+        if input_too_large(context, arguments):
+            return mcp_types.CallToolResult(
+                content=[mcp_types.TextContent(
+                    type="text",
+                    text="DENIED by AgentShield.\nTool: (input too large)\nDecision: deny\n" "Reasons:\n  - [input_too_large] call input exceeds the 256KB edge budget.")],
+                is_error=True,
+            )
 
         if not isinstance(name, str) or not name.strip():
+            # Audit the rejection: this branch returns before shield.check,
+            # so without an explicit record the probe would be invisible.
+            denied_call = ToolCall(tool_name="(missing name)",
+                                   arguments=arguments, source=source,
+                                   context=context,
+                                   metadata={"transport": "mcp"})
+            self.shield.audit.record(EnforcementResult(
+                call=denied_call, decision=Decision.DENY,
+                reasons=[PolicyReason(rule="invalid_tool",
+                                      decision=Decision.DENY,
+                                      detail="missing or blank tool name")],
+                fail_closed=True))
             return mcp_types.CallToolResult(
                 content=[mcp_types.TextContent(
                     type="text",

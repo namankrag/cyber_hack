@@ -2,6 +2,7 @@
 import importlib
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from agentshield.config import Config
@@ -105,6 +106,45 @@ def test_admin_key_split(tmp_path, monkeypatch):
     assert c.post("/v1/check", json=POISON, headers=user).json()["decision"] == "allow"
     r = c.post("/v1/admin/enforce", json={"enabled": True}, headers=adm)
     assert r.json() == {"enforced": True}
+
+
+def test_security_headers_present(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    key = {"X-API-Key": "t"}
+    for path in ("/health", "/v1/enforce"):
+        h = c.get(path, headers=key if "v1" in path else None).headers
+        assert h.get("x-content-type-options") == "nosniff", path
+        assert h.get("x-frame-options") == "DENY", path
+        assert h.get("referrer-policy") == "same-origin", path
+
+
+def test_oversized_body_rejected_413(tmp_path, monkeypatch):
+    c = _client(tmp_path, monkeypatch)
+    key = {"X-API-Key": "t"}
+    r = c.post("/v1/check",
+               json={"tool_name": "search_web", "arguments": {},
+                     "context": "x" * (300 * 1024)},
+               headers=key)
+    assert r.status_code == 413
+    assert "too large" in r.text
+
+
+def test_admin_toggle_is_not_a_pending_hold(tmp_path, monkeypatch):
+    from agentshield.approval.queue import ApprovalQueue
+    from agentshield.audit.log import AuditLog
+
+    c = _client(tmp_path, monkeypatch)
+    key = {"X-API-Key": "t"}
+    r = c.post("/v1/admin/enforce", json={"enabled": False}, headers=key)
+    assert r.status_code == 200
+    q = ApprovalQueue(AuditLog(os.path.join(str(tmp_path), "audit.jsonl")))
+    assert all(p.get("tool") != "admin" for p in q.pending())
+    admin_ids = [e.get("call_id") for e in q._entries()
+                 if e.get("tool") == "admin"]
+    assert admin_ids
+    with pytest.raises(ValueError):
+        q.decide(admin_ids[0], "approve")
+    c.post("/v1/admin/enforce", json={"enabled": True}, headers=key)
 
 
 def test_health_has_no_sensitive_fields_and_evidence_does(tmp_path, monkeypatch):

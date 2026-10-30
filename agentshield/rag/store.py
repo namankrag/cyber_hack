@@ -13,6 +13,14 @@ import os
 import re
 from pathlib import Path
 
+from chromadb.config import Settings
+
+# Telemetry stays off even if a future chromadb release re-enables the sink:
+# the installed 1.5.9 Posthog.capture is already a no-op, but the repo
+# documents "nothing leaves the machine", so the posture must not depend
+# on an upstream default.
+_TELEMETRY_OFF = Settings(anonymized_telemetry=False)
+
 _CORPUS = Path(__file__).resolve().parent.parent / "data" / "rag_corpus.jsonl"
 _COLLECTION = "agent_docs"
 _MAX_RESULTS = 50
@@ -69,9 +77,10 @@ class RagStore:
 
         self._collection_name = collection
         if path:
-            self._client = chromadb.PersistentClient(path=path)
+            self._client = chromadb.PersistentClient(path=path,
+                                                     settings=_TELEMETRY_OFF)
         else:
-            self._client = chromadb.Client()
+            self._client = chromadb.Client(_TELEMETRY_OFF)
         self._collection = self._client.get_or_create_collection(self._collection_name)
 
     @property

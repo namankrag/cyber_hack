@@ -11,5 +11,7 @@ services:
         sync: false
       - key: AGENTSHIELD_API_KEY
         sync: false
+      - key: AGENTSHIELD_ADMIN_KEY
+        sync: false
       - key: AGENTSHIELD_DETECTORS
         value: heuristic

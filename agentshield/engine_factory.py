@@ -12,13 +12,15 @@ operator override for demo theater, never a silent bypass.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from .audit import AuditLog
 from .config import Config
 from .detection.base import build_detectors
 from .models import Decision, EnforcementResult, PolicyReason, ToolCall
-from .policy import PolicyEngine, load_policy
-from .policy.integrity import verify_policy_digest
+from .policy import PolicyEngine
+from .policy.integrity import verify_policy_bytes
+from .policy.loader import load_policy_text
 
 
 class AgentShield:
@@ -27,8 +29,16 @@ class AgentShield:
     def __init__(self, config: Config | None = None,
                  enforce: bool | None = None) -> None:
         self.config = config or Config.from_env()
-        self.policy = load_policy(self.config.policy_path)
-        verify_policy_digest(self.config.policy_path)
+        # Single read, then verify+parse the SAME bytes: a file swapped
+        # between a load-read and a digest-read would otherwise let
+        # unreviewed rules be enforced (or fail a reviewed file).
+        policy_path = Path(self.config.policy_path)
+        if not policy_path.exists():
+            raise FileNotFoundError(f"Policy file not found: {policy_path}")
+        raw = policy_path.read_bytes()
+        verify_policy_bytes(raw)
+        self.policy = load_policy_text(raw.decode("utf-8"),
+                                       source=str(policy_path))
         self.detectors = build_detectors(self.config)
         self.engine = PolicyEngine(self.policy, self.detectors)
         self.audit = AuditLog(self.config.audit_path,

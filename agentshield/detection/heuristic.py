@@ -40,13 +40,14 @@ _PATTERNS: list[tuple[re.Pattern[str], float, str]] = [
     (re.compile(r"(reveal|print|repeat|show|leak|exfiltrate)\s+(your\s+)?"
                 r"(system\s+prompt|instructions|rules|configuration|api[\s_-]?key|secret|token|password|credential)", re.I),
      0.7, "secret / system-prompt exfiltration attempt"),
-    (re.compile(r"\bsend\b.{0,40}\b(to|email)\b.{0,40}(@|http)", re.I),
+    (re.compile(r"\b(send|transmit|forward|post|email)\b.{0,40}\b(to|email)\b.{0,40}(@|http|url|link)", re.I),
      0.45, "data egress to an external address"),
     (re.compile(r"\b(forward|upload|post|transmit|exfiltrate)\b.{0,30}\b(all|entire|the)\b.{0,30}"
                 r"(data|database|records|files|contacts|customers?)", re.I),
      0.55, "bulk data egress instruction"),
     (re.compile(r"\b(forward|transmit|send|post|share|email|disclose|reveal|leak)\b.{0,40}\b"
-                r"(password|passwd|secret|token|credential|api[\s_-]?key|private[\s_-]?key)\b", re.I),
+                r"(password|passwd|secret|token|credential|api[\s_-]?key|private[\s_-]?key|"
+                r"login[\s_-]?(details|credentials)|account[\s_-]?(details|password))\b", re.I),
      0.7, "secret / system-prompt exfiltration attempt"),
     (re.compile(r"do\s+not\s+(tell|inform|mention|alert|notify)\s+(the\s+)?(user|owner|human|anyone)", re.I),
      0.5, "secrecy / keep-it-hidden instruction"),
@@ -174,23 +175,36 @@ def _scan_text(text: str, matched: dict[str, float]) -> None:
 
 
 def _scan_b64_blobs(haystack: str, matched: dict[str, float]) -> None:
-    """Decode long base64 blobs and scan the plaintext (single-blob smuggling)."""
+    """Decode long base64 blobs and scan the plaintext (single-blob smuggling).
+
+    Alignment-tolerant: a blob glued to surrounding text (e.g. after
+    whitespace-compaction of a space-chunked blob) fails strict validation
+    on length, so the first 0-3 offsets are tried. Content gates (utf-8,
+    length, alpha run, must match an injection pattern) keep this FP-safe:
+    random tokens decode to nothing flaggable.
+    """
     for m in _B64_BLOB.finditer(haystack):
-        try:
-            raw = base64.b64decode(m.group(0), validate=True)
-        except Exception:
-            continue
-        try:
-            text = raw.decode("utf-8", errors="strict")
-        except Exception:
-            continue
-        if len(text) < 8 or not re.search(r"[a-zA-Z]{3,}", text):
-            continue
-        before = len(matched)
-        _scan_text(text, matched)
-        _scan_text(normalize_text(text), matched)
-        if len(matched) > before:
-            matched.setdefault("obfuscated / encoded payload", 0.35)
+        token = m.group(0)
+        for offset in range(min(4, len(token))):
+            cand = token[offset:]
+            if len(cand) < 8 or len(cand) % 4:
+                continue
+            try:
+                raw = base64.b64decode(cand, validate=True)
+            except Exception:
+                continue
+            try:
+                text = raw.decode("utf-8", errors="strict")
+            except Exception:
+                continue
+            if len(text) < 8 or not re.search(r"[a-zA-Z]{3,}", text):
+                break
+            before = len(matched)
+            _scan_text(text, matched)
+            _scan_text(normalize_text(text), matched)
+            if len(matched) > before:
+                matched.setdefault("obfuscated / encoded payload", 0.35)
+            break
 
 
 class HeuristicDetector(Detector):
@@ -219,7 +233,22 @@ class HeuristicDetector(Detector):
         surfaces += _extra_surfaces(haystack)
         for text in surfaces:
             _scan_text(text, matched)
-        _scan_b64_blobs(haystack, matched)
+        # Base64 may itself be encoded or chunked: scan every surface
+        # (raw, normalized, URL/HTML-decoded) plus a whitespace-compacted
+        # view, so URL-encoded and space-split blobs still decode to
+        # scannable text. Content gates inside _scan_b64_blobs keep this
+        # FP-safe (random tokens decode to nothing flaggable).
+        seen: set[str] = set()
+        blob_inputs = []
+        for text in surfaces:
+            if text not in seen:
+                seen.add(text)
+                blob_inputs.append(text)
+        compact = re.sub(r"\s+", "", haystack)
+        if compact not in seen:
+            blob_inputs.append(compact)
+        for text in blob_inputs:
+            _scan_b64_blobs(text, matched)
 
         score = min(sum(matched.values()), 1.0)  # saturate
         return DetectionResult(

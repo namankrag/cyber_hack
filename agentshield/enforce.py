@@ -55,6 +55,14 @@ def guard(
     before the coroutine is awaited, and a forged verdict from the body
     is mapped the same way.
     """
+    if inspect.isgeneratorfunction(fn) or inspect.isasyncgenfunction(fn):
+        # A generator body runs at first next(), not at call time: the
+        # check would pass before any side effect executes, possibly
+        # outside the authorizing trusted_scope. Refuse loudly instead of
+        # enforcing at the wrong moment.
+        raise TypeError(
+            "guard() does not support generator tool functions; "
+            "enforce at the point of consumption instead")
 
     def _check(args: tuple, kwargs: dict) -> None:
         argmap = _bind_arguments(fn, args, kwargs)

@@ -94,6 +94,16 @@ def test_oversized_doc_is_refused(tmp_path):
     assert s.count == 0
 
 
+def test_telemetry_disabled_ephemeral_and_persistent(tmp_path):
+    # The repo documents "nothing leaves the machine": pin telemetry off
+    # on both client constructions (installed sink is already a no-op;
+    # this survives an upstream re-enabling it).
+    s = RagStore(collection="telemetry_probe_xyz")
+    assert s._client._system.settings.anonymized_telemetry is False
+    p = RagStore(path=str(tmp_path / "chroma"), collection="telemetry_probe_p")
+    assert p._client._system.settings.anonymized_telemetry is False
+
+
 def test_citation_formatting_escapes_forgery(tmp_path):
     # Planted chunk text / ids cannot forge citation delimiters.
     from agentshield.rag.store import format_chunk

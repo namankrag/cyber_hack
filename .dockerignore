@@ -1,0 +1,11 @@
+# Keep the image lean and secret-free: COPY . . must not bake the local
+# venv (526MB), git history, dev audit trail, caches, or a local .env.
+.venv/
+.git/
+audit.log.jsonl
+.env
+.pytest_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+docs/AgentShield_end_to_end.pdf

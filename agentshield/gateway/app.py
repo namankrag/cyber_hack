@@ -24,9 +24,13 @@ Docs: http://127.0.0.1:8000/docs
 """
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+import hmac
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from . import MAX_BODY_BYTES
 from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
 from ..provenance import insecure_dev_mode, resolve
@@ -42,17 +46,50 @@ app = FastAPI(
 shield = AgentShield()
 
 
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    """Non-breaking hardening headers on every response (incl. errors)."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
+
+@app.middleware("http")
+async def _body_size_limit(request: Request, call_next):
+    """Reject oversized bodies with 413 before detection burns CPU.
+
+    The synchronous heuristic scans ~1MB of surfaces per 1MB of input
+    (~5s of blocked event loop for 5MB, measured). content-length is
+    checked first; length-less chunked streams are an accepted residual
+    (edge/infra should cap too). Legit tool calls carry kilobytes.
+    """
+    if request.method in ("POST", "PUT", "PATCH"):
+        declared = request.headers.get("content-length")
+        if (declared is not None and declared.isdigit()
+                and int(declared) > MAX_BODY_BYTES):
+            return JSONResponse({"detail": "request body too large"},
+                                status_code=413)
+    return await call_next(request)
+
+
+
+
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
     """Gate every endpoint behind an API key when one is configured."""
     configured = shield.config.api_key
     if configured is None:
         return  # no key set -> open (dev); /health flags this
-    if not x_api_key or x_api_key != configured:
+    if not _key_ok(x_api_key, configured):
         raise HTTPException(status_code=401, detail="missing or invalid API key")
 
 
 def _key_ok(provided: str | None, configured: str | None) -> bool:
-    return configured is not None and bool(provided) and provided == configured
+    if configured is None or not provided:
+        return False
+    # Constant-time compare: == leaks the key byte-by-byte to timing probes.
+    return hmac.compare_digest(provided, configured)
 
 
 def require_api_admin(x_api_key: str | None = Header(default=None)) -> None:
@@ -158,6 +195,9 @@ def set_enforce(body: EnforceUpdate) -> dict:
         "ts": _time.time(),
         "call_id": f"admin_{_secrets.token_hex(6)}",
         "tool": "admin",
+        # Not a hold: without this marker the approval queue would list
+        # admin toggle notes as human-approval work items.
+        "approval_of": "admin-action-no-hold",
         "arguments": {"action": "set_enforce", "enabled": body.enabled},
         "source": "user",
         "decision": "require_approval",

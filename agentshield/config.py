@@ -107,6 +107,14 @@ class Config:
         )
         if redact_env is not None:
             kwargs["redact_keys"] = [k.strip().lower() for k in redact_env.split(",") if k.strip()]
+        if kwargs["api_key"] is not None and not os.getenv("AGENTSHIELD_HARNESS_SECRET"):
+            # API key without a harness secret is a half-secured gateway:
+            # HTTP auth is on, yet provenance is still self-asserted.
+            logging.getLogger(__name__).warning(
+                "AGENTSHIELD_API_KEY is set but AGENTSHIELD_HARNESS_SECRET is "
+                "not: HTTP auth is on, yet provenance is still self-asserted "
+                "(insecure dev mode). Set the harness secret in any real "
+                "deployment.")
         if kwargs["api_key"] is None:
             # Auth is opt-in by design (keyless demo default): make the open
             # gateway impossible to miss in logs instead of silent.

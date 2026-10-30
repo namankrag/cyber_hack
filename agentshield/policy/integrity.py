@@ -21,14 +21,26 @@ def digest_of(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def verify_policy_bytes(data: bytes, expected: str | None = None,
+                          *, source: str = "<policy>") -> str:
+    """Verify already-read bytes against the pinned digest (single-read path).
+
+    Takes the bytes so callers read the file ONCE and verify+parse the same
+    bytes — a file swapped between a load-read and a digest-read can
+    otherwise enforce unreviewed rules (or fail a reviewed file).
+    """
+    if expected is None:
+        expected = os.getenv("AGENTSHIELD_POLICY_SHA256")
+    actual = hashlib.sha256(data).hexdigest()
+    if expected and actual != expected.strip().lower():
+        raise PolicyTamperedError(
+            f"policy digest mismatch for {source}: "
+            "refusing to enforce unreviewed rules")
+    return actual
+
+
 def verify_policy_digest(path: str | Path,
                          expected: str | None = None) -> str:
     """Return the file digest; raise PolicyTamperedError on pinned mismatch."""
-    if expected is None:
-        expected = os.getenv("AGENTSHIELD_POLICY_SHA256")
-    actual = digest_of(path)
-    if expected and actual != expected.strip().lower():
-        raise PolicyTamperedError(
-            f"policy digest mismatch for {path}: "
-            "refusing to enforce unreviewed rules")
-    return actual
+    return verify_policy_bytes(Path(path).read_bytes(), expected,
+                               source=str(path))

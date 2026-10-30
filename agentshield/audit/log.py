@@ -65,28 +65,52 @@ class AuditLog:
         if n in self._normalized_redact:
             return True
         return any(f in n for f in self._SENSITIVE_FRAGMENTS)
+    # Sensitive "key": value pairs embedded in longer free text, e.g.
+    # 'err {"password": "hunter2"} done'. The whole-blob JSON branch below
+    # only fires when the entire string parses, so this regex is the net
+    # for interior objects. Over-redaction errs safe.
+    _SENSITIVE_PAIR = re.compile(
+        r'"(?P<key>[^"]+)"\s*:\s*(?P<val>"(?:[^"\\]|\\.)*"'
+        r"|\d+(?:\.\d+)?|true|false|null)")
+
+    def _mask_pairs(self, text: str) -> str:
+        def rep(m: re.Match) -> str:
+            if self._sensitive(m.group("key")):
+                return f'"{m.group("key")}": "{_REDACTED}"'
+            return m.group(0)
+        return self._SENSITIVE_PAIR.sub(rep, text)
+
     def _redact(self, value: Any) -> Any:
         if isinstance(value, dict):
             return {
                 k: (_REDACTED if self._sensitive(k) else self._redact(v))
                 for k, v in value.items()
             }
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple)):
             return [self._redact(v) for v in value]
+        if isinstance(value, (set, frozenset)):
+            # Deterministic order so identical calls audit identically.
+            return [self._redact(v) for v in sorted(value, key=repr)]
+        if isinstance(value, bytes):
+            try:
+                value = value.decode("utf-8", errors="replace")
+            except Exception:
+                return _REDACTED
         if isinstance(value, str):
-            masked = value
-            for pat in self._TOKEN_SHAPES:
-                masked = pat.sub(_REDACTED, masked)
-            # Secrets hidden inside JSON-encoded blobs: parse, redact, re-dump.
-            s = masked.strip()
+            # Whole-string JSON blobs: parse, redact, re-dump.
+            s = value.strip()
             if len(s) >= 2 and s[0] in "{[":
                 try:
                     parsed = json.loads(s)
                 except Exception:
-                    return masked
-                if isinstance(parsed, (dict, list)):
-                    return json.dumps(self._redact(parsed), default=str)
-            return masked
+                    pass
+                else:
+                    if isinstance(parsed, (dict, list)):
+                        return json.dumps(self._redact(parsed), default=str)
+            masked = value
+            for pat in self._TOKEN_SHAPES:
+                masked = pat.sub(_REDACTED, masked)
+            return self._mask_pairs(masked)
         return value
 
     def record(self, result: EnforcementResult) -> None:
