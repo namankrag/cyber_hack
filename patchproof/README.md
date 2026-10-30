@@ -12,6 +12,24 @@ can break things. Smaller teams need *evidence* that a finding is real and that
 a patch removes the weakness without regressions. PatchProof makes that evidence
 the whole product.
 
+## The noise funnel + the gate
+
+Scanners flag; PatchProof proves. On the two bundled apps the funnel is
+measured, not asserted:
+
+| Fixture | Raw alerts | Confirmed (exploited) | Fixed & verified |
+|---|---|---|---|
+| vulnbank (Flask) | 10 | 5 | 5 |
+| shopapi (FastAPI) | 6 | 3 | 3 |
+
+Unconfirmed alerts are **dropped, never patched** (they render as
+`NOT CONFIRMED`). Every confirmed finding faces the gate: a patch is
+accepted only as `FIXED & VERIFIED` — exploit blocked, whole
+payload-variant corpus blocked (85/85 on this tree), regressions green —
+otherwise rejected as `PATCH INEFFECTIVE`, `PATCH BYPASSABLE`, or
+`PATCH BREAKS APP`. CI consumes the SARIF 2.1.0 log and fails the PR
+unless everything confirmed is fixed (`patchproof sarif`).
+
 ## The loop
 
 ```

@@ -13,6 +13,25 @@ AgentShield enforces at the **tool-call boundary**, below the model, where the
 agent cannot reason its way past the policy. We assume an injection may
 succeed — and make sure it still can't *do* anything.
 
+## The 30-second version
+
+**Dashboard:** `uvicorn agentshield.gateway.app:app` → open
+`http://127.0.0.1:8000/` (live decisions, benchmark panel, evidence).
+**One-command run:** `python -m examples.demo` (5 scenarios, keyless).
+
+| Metric (frozen 84-case bench, `docs/BENCHMARK.md`) | OFF (bypass) | ON (enforced) |
+|---|---|---|
+| attack success (malicious allowed) | 100.0% | 4.3% |
+| benign false positives (denied) | — | 0.0% |
+| high-impact approval correctness | — | 100% |
+| decision latency p50 / p95 | — | 0.579ms / 1.335ms |
+
+Code layer in one line: `patchproof sarif` proves each finding with an
+exploit and fails the PR unless everything confirmed is fixed —
+16 alerts → 8 confirmed → 8 fixed across both fixtures (85/85 variant
+payloads blocked). Full gates: `python -m pytest -q` (257 passed,
+1 skipped) and `python -m secureai eval --once` (8/8).
+
 ---
 
 ## Why this exists
