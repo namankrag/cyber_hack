@@ -72,7 +72,7 @@
         <span class="title">CWE-89: SQL injection: user input in SQL string</span>
         <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
       </div>
-      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:104</code></div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:111</code></div>
       <div class="detail">Use a parameterized query so user input is bound as data, never parsed as SQL. Closes CWE-89 without changing behaviour for legitimate credentials.</div>
       <div class="evidence">POST /login {username: &quot;admin&#x27; --&quot;} -&gt; 200 {&#x27;role&#x27;: &#x27;admin&#x27;, &#x27;token&#x27;: &#x27;3&#x27;}. Authenticated as admin without the password.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
@@ -82,9 +82,29 @@
         <span class="title">CWE-78: OS command injection: user input in shell command</span>
         <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
       </div>
-      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:136</code></div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:143</code></div>
       <div class="detail">Reject non-hostname input and call ping via an argument list (no shell), so metacharacters cannot start a new command. Closes CWE-78; legitimate hostnames still work. Verified portably: the echo runs through the Python interpreter (no echo binary needed), still with no shell and allow-listed input.</div>
       <div class="evidence">POST /ping {host: &#x27;127.0.0.1; echo PWNED_BY_PATCHPROOF&#x27;} -&gt; injected command executed (output contained the marker).</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-89: SQL injection: user input in SQL string</span>
+        <span class="badge" style="color:#64748b;background:#f1f5f9">UNCONFIRMED</span>
+      </div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:179</code></div>
+      <div class="detail">no patch</div>
+      <div class="evidence">POST /search {q: &quot;admin&#x27; --&quot;} -&gt; 400 {&#x27;error&#x27;: &#x27;user id must be an integer&#x27;}. Blocked.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-78: OS command injection: user input in shell command</span>
+        <span class="badge" style="color:#64748b;background:#f1f5f9">UNCONFIRMED</span>
+      </div>
+      <div class="sev">CRITICAL &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:195</code></div>
+      <div class="detail">no patch</div>
+      <div class="evidence">POST /ping-safe {host: &#x27;127.0.0.1; echo PWNED_BY_PATCHPROOF&#x27;} -&gt; injected command did not run.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
     </div>
     <div class="card">
@@ -92,7 +112,7 @@
         <span class="title">CWE-639: Broken access control: object returned without ownership check</span>
         <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
       </div>
-      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:112</code></div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:119</code></div>
       <div class="detail">Enforce that the account&#x27;s owner_id matches the authenticated caller (admins exempt). Closes CWE-639; owners still read their own accounts unchanged.</div>
       <div class="evidence">GET /accounts/&lt;int:account_id&gt; as user 1 -&gt; id 1002 owned by 2. Read another users object.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
@@ -102,7 +122,7 @@
         <span class="title">CWE-22: Path traversal: user input in a filesystem path</span>
         <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
       </div>
-      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:143</code></div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:150</code></div>
       <div class="detail">Resolve the requested path and confirm it stays inside the docs directory before opening it. Closes CWE-22; legitimate files in docs/ still load.</div>
       <div class="evidence">GET /files?name=../vault_secret.txt -&gt; 200. Leaked a file outside the docs directory.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
@@ -112,9 +132,39 @@
         <span class="title">CWE-79: Reflected XSS: user input returned in HTML unescaped</span>
         <span class="badge" style="color:#15803d;background:#dcfce7">FIXED</span>
       </div>
-      <div class="sev">MEDIUM &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:150</code></div>
+      <div class="sev">MEDIUM &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:157</code></div>
       <div class="detail">HTML-escape user input before reflecting it. Closes CWE-79; the greeting still shows the name, now inert.</div>
       <div class="evidence">GET /greet?name=&lt;script&gt;alert(document.cookie)&lt;/script&gt; -&gt; payload reflected unescaped (executes in a browser).</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-22: Path traversal: user input in a filesystem path</span>
+        <span class="badge" style="color:#64748b;background:#f1f5f9">UNCONFIRMED</span>
+      </div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:207</code></div>
+      <div class="detail">no patch</div>
+      <div class="evidence">GET /docs?name=../vault_secret.txt -&gt; 400. Blocked.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-79: Reflected XSS: user input returned in HTML unescaped</span>
+        <span class="badge" style="color:#64748b;background:#f1f5f9">UNCONFIRMED</span>
+      </div>
+      <div class="sev">MEDIUM &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:216</code></div>
+      <div class="detail">no patch</div>
+      <div class="evidence">GET /hello?name=&lt;script&gt;alert(document.cookie)&lt;/script&gt; -&gt; payload was escaped.</div>
+      <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <span class="title">CWE-639: Broken access control: object returned without ownership check</span>
+        <span class="badge" style="color:#64748b;background:#f1f5f9">UNCONFIRMED</span>
+      </div>
+      <div class="sev">HIGH &nbsp;·&nbsp; <code>patchproof/vulnbank/app.py:219</code></div>
+      <div class="detail">no patch</div>
+      <div class="evidence">GET /accounts/&lt;int:account_id&gt;/statement as user 1 -&gt; only id None readable. Access denied.</div>
       <div class='link'>↳ triggered by runtime block on <code>read_customer_db</code></div>
     </div></div>
 </div>

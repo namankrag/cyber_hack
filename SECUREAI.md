@@ -68,7 +68,7 @@ secureai watch --interval 1 --out-dir reports
 
 # Tests - one suite from the repo root (collects tests/ + patchproof/tests/)
 pytest -q
-# -> 178 passed, 1 skipped (the skip is the Semgrep-engine test;
+# -> 257 passed, 1 skipped (the skip is the Semgrep-engine test;
 #    Semgrep is not installed, so the platform uses its graceful AST fallback)
 ```
 

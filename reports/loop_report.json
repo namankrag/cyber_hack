@@ -4,14 +4,60 @@
   "max_iters": 8,
   "iterations_to_converge": 5,
   "residual_confirmed": 0,
-  "residual_findings": [],
+  "residual_findings": [
+    {
+      "rule_id": "sqli-decoy",
+      "cwe": "CWE-89",
+      "file": "patchproof/vulnbank/app.py",
+      "line": 190,
+      "severity": "critical",
+      "confirmed": false,
+      "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+    },
+    {
+      "rule_id": "cmdi-decoy",
+      "cwe": "CWE-78",
+      "file": "patchproof/vulnbank/app.py",
+      "line": 206,
+      "severity": "critical",
+      "confirmed": false,
+      "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+    },
+    {
+      "rule_id": "pathtrav-decoy",
+      "cwe": "CWE-22",
+      "file": "patchproof/vulnbank/app.py",
+      "line": 218,
+      "severity": "high",
+      "confirmed": false,
+      "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+    },
+    {
+      "rule_id": "xss-decoy",
+      "cwe": "CWE-79",
+      "file": "patchproof/vulnbank/app.py",
+      "line": 227,
+      "severity": "medium",
+      "confirmed": false,
+      "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+    },
+    {
+      "rule_id": "idor-decoy",
+      "cwe": "CWE-639",
+      "file": "patchproof/vulnbank/app.py",
+      "line": 230,
+      "severity": "high",
+      "confirmed": false,
+      "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
+    }
+  ],
   "approval_required": false,
-  "fixture_sha256": "5fc56019558fb61ae7a960024ab6b0ab5c4efa5366e7934463e181d19729b4c0",
-  "deployed_copy_sha256": "ad25e7d5cb1055e4e60583eaa311b1b8d5fceed5479b99244932df491a6df722",
+  "fixture_sha256": "352cf39cd86fb488baf65e190121be31b3daef6291fdf9f0fb3444a2536cad53",
+  "deployed_copy_sha256": "cb60455ff6f49a78be3e80f56d135564e6f9b8fa0957a38899cdaf167479acbc",
   "iterations": [
     {
       "iteration": 1,
-      "source_sha256_before": "5fc56019558fb61ae7a960024ab6b0ab5c4efa5366e7934463e181d19729b4c0",
+      "source_sha256_before": "352cf39cd86fb488baf65e190121be31b3daef6291fdf9f0fb3444a2536cad53",
       "runtime_attack_before": [
         {
           "tool": "read_customer_db",
@@ -19,7 +65,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.971
+          "latency_ms": 0.936
         },
         {
           "tool": "send_email",
@@ -27,7 +73,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.897
+          "latency_ms": 0.734
         },
         {
           "tool": "transfer_funds",
@@ -35,7 +81,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.865
+          "latency_ms": 0.678
         }
       ],
       "bridge_scans_before": [
@@ -44,7 +90,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:104",
+              "ref": "patchproof/vulnbank/app.py:111",
               "title": "CWE-89: SQL injection: user input in SQL string",
               "status": "unconfirmed",
               "links": [
@@ -52,7 +98,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:136",
+              "ref": "patchproof/vulnbank/app.py:143",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -60,7 +106,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:112",
+              "ref": "patchproof/vulnbank/app.py:179",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:195",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:119",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -68,7 +130,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:143",
+              "ref": "patchproof/vulnbank/app.py:150",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -76,8 +138,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:150",
+              "ref": "patchproof/vulnbank/app.py:157",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:207",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:216",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:219",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -90,7 +176,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:104",
+              "ref": "patchproof/vulnbank/app.py:111",
               "title": "CWE-89: SQL injection: user input in SQL string",
               "status": "unconfirmed",
               "links": [
@@ -98,7 +184,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:136",
+              "ref": "patchproof/vulnbank/app.py:143",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -106,7 +192,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:112",
+              "ref": "patchproof/vulnbank/app.py:179",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:195",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:119",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -114,7 +216,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:143",
+              "ref": "patchproof/vulnbank/app.py:150",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -122,8 +224,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:150",
+              "ref": "patchproof/vulnbank/app.py:157",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:207",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:216",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:219",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -136,7 +262,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:104",
+              "ref": "patchproof/vulnbank/app.py:111",
               "title": "CWE-89: SQL injection: user input in SQL string",
               "status": "unconfirmed",
               "links": [
@@ -144,7 +270,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:136",
+              "ref": "patchproof/vulnbank/app.py:143",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -152,7 +278,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:112",
+              "ref": "patchproof/vulnbank/app.py:179",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:195",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:119",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -160,7 +302,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:143",
+              "ref": "patchproof/vulnbank/app.py:150",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -168,8 +310,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:150",
+              "ref": "patchproof/vulnbank/app.py:157",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:207",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:216",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:219",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -183,7 +349,7 @@
           "rule_id": "sqli",
           "cwe": "CWE-89",
           "file": "patchproof/vulnbank/app.py",
-          "line": 104,
+          "line": 111,
           "severity": "critical",
           "confirmed": true,
           "evidence": "POST /login {username: \"admin' --\"} -> 200 {'role': 'admin', 'token': '3'}. Authenticated as admin without the password."
@@ -192,16 +358,34 @@
           "rule_id": "cmdi",
           "cwe": "CWE-78",
           "file": "patchproof/vulnbank/app.py",
-          "line": 136,
+          "line": 143,
           "severity": "critical",
           "confirmed": true,
           "evidence": "POST /ping {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command executed (output contained the marker)."
         },
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 179,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 195,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "idor",
           "cwe": "CWE-639",
           "file": "patchproof/vulnbank/app.py",
-          "line": 112,
+          "line": 119,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /accounts/<int:account_id> as user 1 -> id 1002 owned by 2. Read another users object."
@@ -210,7 +394,7 @@
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 143,
+          "line": 150,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -219,10 +403,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 150,
+          "line": 157,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 207,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 216,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 219,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "confirmed_before": 5,
@@ -230,11 +441,11 @@
       "patch": {
         "rule_id": "sqli",
         "cwe": "CWE-89",
-        "location": "patchproof/vulnbank/app.py:104",
+        "location": "patchproof/vulnbank/app.py:111",
         "severity": "critical",
         "severity_rationale": "Pre-auth data exposure / full auth bypass; trivially exploitable, high impact.",
         "patch_rationale": "Use a parameterized query so user input is bound as data, never parsed as SQL. Closes CWE-89 without changing behaviour for legitimate credentials.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n@@ -95,13 +95,12 @@\n         data = request.get_json(silent=True) or {}\n         username = data.get(\"username\", \"\")\n         password = data.get(\"password\", \"\")\n-        # VULN[sqli]: CWE-89 \u2014 user input concatenated straight into SQL.\n-        query = (\n-            \"SELECT * FROM users WHERE username = '%s' AND password = '%s'\"\n-            % (username, password)\n-        )\n+        # FIX[sqli]: parameterized query \u2014 input is bound, not interpolated.\n         try:\n-            row = conn.execute(query).fetchone()\n+            row = conn.execute(\n+                \"SELECT * FROM users WHERE username = ? AND password = ?\",\n+                (username, password),\n+            ).fetchone()\n         except sqlite3.Error as exc:\n             return jsonify(error=f\"query error: {exc}\"), 400\n         if row is None:\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -102,13 +102,12 @@\n         data = request.get_json(silent=True) or {}\n         username = data.get(\"username\", \"\")\n         password = data.get(\"password\", \"\")\n-        # VULN[sqli]: CWE-89 \u2014 user input concatenated straight into SQL.\n-        query = (\n-            \"SELECT * FROM users WHERE username = '%s' AND password = '%s'\"\n-            % (username, password)\n-        )\n+        # FIX[sqli]: parameterized query \u2014 input is bound, not interpolated.\n         try:\n-            row = conn.execute(query).fetchone()\n+            row = conn.execute(\n+                \"SELECT * FROM users WHERE username = ? AND password = ?\",\n+                (username, password),\n+            ).fetchone()\n         except sqlite3.Error as exc:\n             return jsonify(error=f\"query error: {exc}\"), 400\n         if row is None:\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -242,6 +453,51 @@
         "regression_checks": [
           {
             "name": "health_ok",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "nested_public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "owner_reads_own_account",
+            "passed": true,
+            "detail": "status=200 id=1001"
+          },
+          {
+            "name": "admin_reads_other_account",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "legit_ping_works",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "legit_hostname_with_dots_works",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "greet_works",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "unicode_greeting_preserved",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "empty_greeting_works",
             "passed": true,
             "detail": "status=200"
           },
@@ -256,30 +512,20 @@
             "detail": "status=401"
           },
           {
-            "name": "legit_ping_works",
+            "name": "quote_in_username_no_crash",
             "passed": true,
-            "detail": "status=200"
+            "detail": "status=401"
           },
           {
-            "name": "owner_reads_own_account",
+            "name": "unicode_username_no_crash",
             "passed": true,
-            "detail": "status=200 id=1001"
-          },
-          {
-            "name": "public_file_readable",
-            "passed": true,
-            "detail": "status=200"
-          },
-          {
-            "name": "greet_works",
-            "passed": true,
-            "detail": "status=200"
+            "detail": "status=401"
           }
         ],
         "error": null,
         "human_approval_required": false
       },
-      "source_sha256_after": "c504e6a826ec4263dc4a721c73f3ea4c6f6d48f80f1707d34cace62620a0a2a9",
+      "source_sha256_after": "173e274da75999e8c8f531a86579f337344f16192f5f2e3cf78f39138f908430",
       "runtime_attack_after": [
         {
           "tool": "read_customer_db",
@@ -287,7 +533,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.934
+          "latency_ms": 1.533
         },
         {
           "tool": "send_email",
@@ -295,7 +541,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.805
+          "latency_ms": 1.403
         },
         {
           "tool": "transfer_funds",
@@ -303,7 +549,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.731
+          "latency_ms": 1.15
         }
       ],
       "bridge_scans_after": [
@@ -312,7 +558,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -320,7 +566,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -328,7 +590,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -336,8 +598,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -350,7 +636,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -358,7 +644,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -366,7 +668,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -374,8 +676,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -388,7 +714,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -396,7 +722,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -404,7 +746,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -412,8 +754,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -427,16 +793,34 @@
           "rule_id": "cmdi",
           "cwe": "CWE-78",
           "file": "patchproof/vulnbank/app.py",
-          "line": 135,
+          "line": 142,
           "severity": "critical",
           "confirmed": true,
           "evidence": "POST /ping {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command executed (output contained the marker)."
         },
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 178,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 194,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "idor",
           "cwe": "CWE-639",
           "file": "patchproof/vulnbank/app.py",
-          "line": 111,
+          "line": 118,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /accounts/<int:account_id> as user 1 -> id 1002 owned by 2. Read another users object."
@@ -445,7 +829,7 @@
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 142,
+          "line": 149,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -454,10 +838,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 149,
+          "line": 156,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 206,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 215,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 218,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "proof_error_after": null,
@@ -467,12 +878,12 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 1032.989,
+      "elapsed_ms": 3048.933,
       "status": "progress"
     },
     {
       "iteration": 2,
-      "source_sha256_before": "c504e6a826ec4263dc4a721c73f3ea4c6f6d48f80f1707d34cace62620a0a2a9",
+      "source_sha256_before": "173e274da75999e8c8f531a86579f337344f16192f5f2e3cf78f39138f908430",
       "runtime_attack_before": [
         {
           "tool": "read_customer_db",
@@ -480,7 +891,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.809
+          "latency_ms": 1.182
         },
         {
           "tool": "send_email",
@@ -488,7 +899,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.746
+          "latency_ms": 1.051
         },
         {
           "tool": "transfer_funds",
@@ -496,7 +907,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.643
+          "latency_ms": 0.943
         }
       ],
       "bridge_scans_before": [
@@ -505,7 +916,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -513,7 +924,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -521,7 +948,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -529,8 +956,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -543,7 +994,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -551,7 +1002,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -559,7 +1026,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -567,8 +1034,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -581,7 +1072,7 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:135",
+              "ref": "patchproof/vulnbank/app.py:142",
               "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
@@ -589,7 +1080,23 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:178",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:194",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -597,7 +1104,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:142",
+              "ref": "patchproof/vulnbank/app.py:149",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -605,8 +1112,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:215",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -620,16 +1151,34 @@
           "rule_id": "cmdi",
           "cwe": "CWE-78",
           "file": "patchproof/vulnbank/app.py",
-          "line": 135,
+          "line": 142,
           "severity": "critical",
           "confirmed": true,
           "evidence": "POST /ping {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command executed (output contained the marker)."
         },
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 178,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 194,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "idor",
           "cwe": "CWE-639",
           "file": "patchproof/vulnbank/app.py",
-          "line": 111,
+          "line": 118,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /accounts/<int:account_id> as user 1 -> id 1002 owned by 2. Read another users object."
@@ -638,7 +1187,7 @@
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 142,
+          "line": 149,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -647,10 +1196,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 149,
+          "line": 156,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 206,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 215,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 218,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "confirmed_before": 4,
@@ -658,11 +1234,11 @@
       "patch": {
         "rule_id": "cmdi",
         "cwe": "CWE-78",
-        "location": "patchproof/vulnbank/app.py:135",
+        "location": "patchproof/vulnbank/app.py:142",
         "severity": "critical",
         "severity_rationale": "Arbitrary command execution on the host; trivially exploitable, highest impact.",
         "patch_rationale": "Reject non-hostname input and call ping via an argument list (no shell), so metacharacters cannot start a new command. Closes CWE-78; legitimate hostnames still work. Verified portably: the echo runs through the Python interpreter (no echo binary needed), still with no shell and allow-listed input.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n@@ -131,8 +131,15 @@\n             return jsonify(error=\"unauthenticated\"), 401\n         data = request.get_json(silent=True) or {}\n         host = data.get(\"host\", \"\")\n-        # VULN[cmdi]: CWE-78 \u2014 user input flows into a shell command.\n-        output = os.popen(\"echo pinging \" + host).read()\n+        # FIX[cmdi]: validate input and avoid the shell (argument list).\n+        # PORTABILITY (SecureAI integration): echo via the interpreter rather\n+        # than an `echo` binary (Windows has no echo.exe); still no shell.\n+        import re as _re, subprocess as _sp, sys as _sys\n+        if not _re.fullmatch(r\"[A-Za-z0-9_.-]+\", host or \"\"):\n+            return jsonify(error=\"invalid host\"), 400\n+        output = _sp.run([_sys.executable, \"-c\",\n+                          \"import sys; print('pinging ' + sys.argv[1])\", host],\n+                         capture_output=True, text=True, timeout=5).stdout\n         return jsonify(host=host, output=output)\n \n     @app.get(\"/files\")\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -138,8 +138,15 @@\n             return jsonify(error=\"unauthenticated\"), 401\n         data = request.get_json(silent=True) or {}\n         host = data.get(\"host\", \"\")\n-        # VULN[cmdi]: CWE-78 \u2014 user input flows into a shell command.\n-        output = os.popen(\"echo pinging \" + host).read()\n+        # FIX[cmdi]: validate input and avoid the shell (argument list).\n+        # PORTABILITY (SecureAI integration): echo via the interpreter rather\n+        # than an `echo` binary (Windows has no echo.exe); still no shell.\n+        import re as _re, subprocess as _sp, sys as _sys\n+        if not _re.fullmatch(r\"[A-Za-z0-9_.-]+\", host or \"\"):\n+            return jsonify(error=\"invalid host\"), 400\n+        output = _sp.run([_sys.executable, \"-c\",\n+                          \"import sys; print('pinging ' + sys.argv[1])\", host],\n+                         capture_output=True, text=True, timeout=5).stdout\n         return jsonify(host=host, output=output)\n \n     @app.get(\"/files\")\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -670,6 +1246,26 @@
         "regression_checks": [
           {
             "name": "health_ok",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "nested_public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "owner_reads_own_account",
+            "passed": true,
+            "detail": "status=200 id=1001"
+          },
+          {
+            "name": "admin_reads_other_account",
             "passed": true,
             "detail": "status=200"
           },
@@ -679,12 +1275,7 @@
             "detail": "status=200"
           },
           {
-            "name": "owner_reads_own_account",
-            "passed": true,
-            "detail": "status=200 id=1001"
-          },
-          {
-            "name": "public_file_readable",
+            "name": "legit_hostname_with_dots_works",
             "passed": true,
             "detail": "status=200"
           },
@@ -692,12 +1283,22 @@
             "name": "greet_works",
             "passed": true,
             "detail": "status=200"
+          },
+          {
+            "name": "unicode_greeting_preserved",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "empty_greeting_works",
+            "passed": true,
+            "detail": "status=200"
           }
         ],
         "error": null,
         "human_approval_required": false
       },
-      "source_sha256_after": "14db40be4db6134a313b95966ae28712546a8cf4b6f96aecb77759317f7a1e2c",
+      "source_sha256_after": "11d5bf64088f8f15aadf563f8ef97022dc6588eb5f0ac3eebe58d56c9003376e",
       "runtime_attack_after": [
         {
           "tool": "read_customer_db",
@@ -705,7 +1306,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.486
+          "latency_ms": 0.943
         },
         {
           "tool": "send_email",
@@ -713,7 +1314,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.382
+          "latency_ms": 0.799
         },
         {
           "tool": "transfer_funds",
@@ -721,7 +1322,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.255
+          "latency_ms": 0.784
         }
       ],
       "bridge_scans_after": [
@@ -730,7 +1331,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -738,7 +1355,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -746,8 +1363,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -760,7 +1401,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -768,7 +1425,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -776,8 +1433,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -790,7 +1471,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -798,7 +1495,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -806,8 +1503,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -818,10 +1539,28 @@
       ],
       "findings_after": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 185,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 201,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "idor",
           "cwe": "CWE-639",
           "file": "patchproof/vulnbank/app.py",
-          "line": 111,
+          "line": 118,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /accounts/<int:account_id> as user 1 -> id 1002 owned by 2. Read another users object."
@@ -830,7 +1569,7 @@
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 149,
+          "line": 156,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -839,10 +1578,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 156,
+          "line": 163,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 213,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 222,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 225,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "proof_error_after": null,
@@ -852,12 +1618,12 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 1136.863,
+      "elapsed_ms": 4063.694,
       "status": "progress"
     },
     {
       "iteration": 3,
-      "source_sha256_before": "14db40be4db6134a313b95966ae28712546a8cf4b6f96aecb77759317f7a1e2c",
+      "source_sha256_before": "11d5bf64088f8f15aadf563f8ef97022dc6588eb5f0ac3eebe58d56c9003376e",
       "runtime_attack_before": [
         {
           "tool": "read_customer_db",
@@ -865,7 +1631,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.902
+          "latency_ms": 1.607
         },
         {
           "tool": "send_email",
@@ -873,7 +1639,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.708
+          "latency_ms": 1.332
         },
         {
           "tool": "transfer_funds",
@@ -881,7 +1647,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.778
+          "latency_ms": 1.216
         }
       ],
       "bridge_scans_before": [
@@ -890,7 +1656,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -898,7 +1680,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -906,8 +1688,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -920,7 +1726,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -928,7 +1750,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -936,8 +1758,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -950,7 +1796,23 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:111",
+              "ref": "patchproof/vulnbank/app.py:185",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:201",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:118",
               "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
@@ -958,7 +1820,7 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:149",
+              "ref": "patchproof/vulnbank/app.py:156",
               "title": "CWE-22: Path traversal: user input in a filesystem path",
               "status": "unconfirmed",
               "links": [
@@ -966,8 +1828,32 @@
               ]
             },
             {
-              "ref": "patchproof/vulnbank/app.py:156",
+              "ref": "patchproof/vulnbank/app.py:163",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:213",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:222",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:225",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -978,10 +1864,28 @@
       ],
       "findings_before": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 185,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 201,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "idor",
           "cwe": "CWE-639",
           "file": "patchproof/vulnbank/app.py",
-          "line": 111,
+          "line": 118,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /accounts/<int:account_id> as user 1 -> id 1002 owned by 2. Read another users object."
@@ -990,7 +1894,7 @@
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 149,
+          "line": 156,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -999,10 +1903,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 156,
+          "line": 163,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 213,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 222,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 225,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "confirmed_before": 3,
@@ -1010,11 +1941,11 @@
       "patch": {
         "rule_id": "idor",
         "cwe": "CWE-639",
-        "location": "patchproof/vulnbank/app.py:111",
+        "location": "patchproof/vulnbank/app.py:118",
         "severity": "high",
         "severity_rationale": "Authenticated user can access other users' data; easy to exploit, confidentiality impact.",
         "patch_rationale": "Enforce that the account's owner_id matches the authenticated caller (admins exempt). Closes CWE-639; owners still read their own accounts unchanged.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n@@ -117,8 +117,9 @@\n         ).fetchone()\n         if acct is None:\n             return jsonify(error=\"not found\"), 404\n-        # VULN[idor]: CWE-639 \u2014 any authenticated user can read ANY account;\n-        # the handler never checks that the account belongs to the caller.\n+        # FIX[idor]: ownership check \u2014 caller must own the account (or be admin).\n+        if acct[\"owner_id\"] != user[\"id\"] and user[\"role\"] != \"admin\":\n+            return jsonify(error=\"forbidden\"), 403\n         return jsonify(\n             id=acct[\"id\"], owner_id=acct[\"owner_id\"],\n             balance=acct[\"balance\"], note=acct[\"note\"],\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -124,8 +124,9 @@\n         ).fetchone()\n         if acct is None:\n             return jsonify(error=\"not found\"), 404\n-        # VULN[idor]: CWE-639 \u2014 any authenticated user can read ANY account;\n-        # the handler never checks that the account belongs to the caller.\n+        # FIX[idor]: ownership check \u2014 caller must own the account (or be admin).\n+        if acct[\"owner_id\"] != user[\"id\"] and user[\"role\"] != \"admin\":\n+            return jsonify(error=\"forbidden\"), 403\n         return jsonify(\n             id=acct[\"id\"], owner_id=acct[\"owner_id\"],\n             balance=acct[\"balance\"], note=acct[\"note\"],\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -1022,6 +1953,16 @@
         "regression_checks": [
           {
             "name": "health_ok",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "nested_public_file_readable",
             "passed": true,
             "detail": "status=200"
           },
@@ -1031,7 +1972,7 @@
             "detail": "status=200 id=1001"
           },
           {
-            "name": "public_file_readable",
+            "name": "admin_reads_other_account",
             "passed": true,
             "detail": "status=200"
           },
@@ -1039,12 +1980,22 @@
             "name": "greet_works",
             "passed": true,
             "detail": "status=200"
+          },
+          {
+            "name": "unicode_greeting_preserved",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "empty_greeting_works",
+            "passed": true,
+            "detail": "status=200"
           }
         ],
         "error": null,
         "human_approval_required": false
       },
-      "source_sha256_after": "0fc4685815fefad33c4c2fa7464fcd73a7aa849bfa36e04995828abe49b906bd",
+      "source_sha256_after": "f597487f2c06124b2911b85e5768a743dc4b177a4b50eb291af871137192e4e8",
       "runtime_attack_after": [
         {
           "tool": "read_customer_db",
@@ -1052,7 +2003,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.818
+          "latency_ms": 1.192
         },
         {
           "tool": "send_email",
@@ -1060,7 +2011,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.706
+          "latency_ms": 1.053
         },
         {
           "tool": "transfer_funds",
@@ -1068,7 +2019,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.652
+          "latency_ms": 0.963
         }
       ],
       "bridge_scans_after": [
@@ -1077,8 +2028,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1086,7 +2045,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1099,8 +2090,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1108,7 +2107,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1121,8 +2152,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1130,7 +2169,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1141,10 +2212,28 @@
       ],
       "findings_after": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 186,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 202,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 150,
+          "line": 157,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -1153,10 +2242,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 157,
+          "line": 164,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 214,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 223,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 226,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "proof_error_after": null,
@@ -1166,12 +2282,12 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 963.116,
+      "elapsed_ms": 2543.091,
       "status": "progress"
     },
     {
       "iteration": 4,
-      "source_sha256_before": "0fc4685815fefad33c4c2fa7464fcd73a7aa849bfa36e04995828abe49b906bd",
+      "source_sha256_before": "f597487f2c06124b2911b85e5768a743dc4b177a4b50eb291af871137192e4e8",
       "runtime_attack_before": [
         {
           "tool": "read_customer_db",
@@ -1179,7 +2295,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.825
+          "latency_ms": 0.863
         },
         {
           "tool": "send_email",
@@ -1187,7 +2303,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.715
+          "latency_ms": 0.691
         },
         {
           "tool": "transfer_funds",
@@ -1195,7 +2311,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.809
+          "latency_ms": 0.696
         }
       ],
       "bridge_scans_before": [
@@ -1204,8 +2320,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1213,7 +2337,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1226,8 +2382,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1235,7 +2399,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1248,8 +2444,16 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:150",
-              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "ref": "patchproof/vulnbank/app.py:186",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:202",
+              "title": "CWE-78: OS command injection: user input in shell command",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1257,7 +2461,39 @@
             },
             {
               "ref": "patchproof/vulnbank/app.py:157",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:164",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:214",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:223",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1268,10 +2504,28 @@
       ],
       "findings_before": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 186,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 202,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "pathtrav",
           "cwe": "CWE-22",
           "file": "patchproof/vulnbank/app.py",
-          "line": 150,
+          "line": 157,
           "severity": "high",
           "confirmed": true,
           "evidence": "GET /files?name=../vault_secret.txt -> 200. Leaked a file outside the docs directory."
@@ -1280,10 +2534,37 @@
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 157,
+          "line": 164,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 214,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 223,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 226,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "confirmed_before": 2,
@@ -1291,11 +2572,11 @@
       "patch": {
         "rule_id": "pathtrav",
         "cwe": "CWE-22",
-        "location": "patchproof/vulnbank/app.py:150",
+        "location": "patchproof/vulnbank/app.py:157",
         "severity": "high",
         "severity_rationale": "Reads arbitrary files outside the intended directory; easy to exploit.",
         "patch_rationale": "Resolve the requested path and confirm it stays inside the docs directory before opening it. Closes CWE-22; legitimate files in docs/ still load.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n@@ -146,8 +146,11 @@\n     @app.get(\"/files\")\n     def read_file():\n         name = request.args.get(\"name\", \"welcome.txt\")\n-        # VULN[pathtrav]: CWE-22 \u2014 user input used to build a filesystem path.\n-        content = open(docs_dir + \"/\" + name).read()\n+        # FIX[pathtrav]: resolve and confine the path to docs_dir.\n+        safe = os.path.normpath(os.path.join(docs_dir, name))\n+        if safe != docs_dir and not safe.startswith(docs_dir + os.sep):\n+            return jsonify(error=\"invalid path\"), 400\n+        content = open(safe).read()\n         return jsonify(name=name, content=content)\n \n     @app.get(\"/greet\")\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -153,8 +153,11 @@\n     @app.get(\"/files\")\n     def read_file():\n         name = request.args.get(\"name\", \"welcome.txt\")\n-        # VULN[pathtrav]: CWE-22 \u2014 user input used to build a filesystem path.\n-        content = open(docs_dir + \"/\" + name).read()\n+        # FIX[pathtrav]: resolve and confine the path to docs_dir.\n+        safe = os.path.normpath(os.path.join(docs_dir, name))\n+        if safe != docs_dir and not safe.startswith(docs_dir + os.sep):\n+            return jsonify(error=\"invalid path\"), 400\n+        content = open(safe).read()\n         return jsonify(name=name, content=content)\n \n     @app.get(\"/greet\")\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -1312,7 +2593,22 @@
             "detail": "status=200"
           },
           {
+            "name": "nested_public_file_readable",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
             "name": "greet_works",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "unicode_greeting_preserved",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "empty_greeting_works",
             "passed": true,
             "detail": "status=200"
           }
@@ -1320,7 +2616,7 @@
         "error": null,
         "human_approval_required": false
       },
-      "source_sha256_after": "c531588f8df8a6e59b8b1908294e2a381809b259001aa213fe6ce0842a0b8cf3",
+      "source_sha256_after": "9fc5139991afe00bcd4e3b64126a63badfb38044000e0a2b48af7fc4547255ba",
       "runtime_attack_after": [
         {
           "tool": "read_customer_db",
@@ -1328,7 +2624,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.152
+          "latency_ms": 1.39
         },
         {
           "tool": "send_email",
@@ -1336,7 +2632,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.025
+          "latency_ms": 1.147
         },
         {
           "tool": "transfer_funds",
@@ -1344,7 +2640,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.035
+          "latency_ms": 1.037
         }
       ],
       "bridge_scans_after": [
@@ -1353,8 +2649,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1367,8 +2703,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1381,8 +2757,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1393,13 +2809,58 @@
       ],
       "findings_after": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 189,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 205,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 160,
+          "line": 167,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 217,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 226,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 229,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "proof_error_after": null,
@@ -1409,12 +2870,12 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 1136.726,
+      "elapsed_ms": 2793.159,
       "status": "progress"
     },
     {
       "iteration": 5,
-      "source_sha256_before": "c531588f8df8a6e59b8b1908294e2a381809b259001aa213fe6ce0842a0b8cf3",
+      "source_sha256_before": "9fc5139991afe00bcd4e3b64126a63badfb38044000e0a2b48af7fc4547255ba",
       "runtime_attack_before": [
         {
           "tool": "read_customer_db",
@@ -1422,7 +2883,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.282
+          "latency_ms": 1.638
         },
         {
           "tool": "send_email",
@@ -1430,7 +2891,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.142
+          "latency_ms": 1.537
         },
         {
           "tool": "transfer_funds",
@@ -1438,7 +2899,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.285
+          "latency_ms": 1.391
         }
       ],
       "bridge_scans_before": [
@@ -1447,8 +2908,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "read_customer_db"
@@ -1461,8 +2962,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "send_email"
@@ -1475,8 +3016,48 @@
           "trigger_blocked": true,
           "linked_findings": [
             {
-              "ref": "patchproof/vulnbank/app.py:160",
+              "ref": "patchproof/vulnbank/app.py:189",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:205",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:167",
               "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:217",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:226",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:229",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
               "status": "unconfirmed",
               "links": [
                 "transfer_funds"
@@ -1487,13 +3068,58 @@
       ],
       "findings_before": [
         {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 189,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 205,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
           "rule_id": "xss",
           "cwe": "CWE-79",
           "file": "patchproof/vulnbank/app.py",
-          "line": 160,
+          "line": 167,
           "severity": "medium",
           "confirmed": true,
           "evidence": "GET /greet?name=<script>alert(document.cookie)</script> -> payload reflected unescaped (executes in a browser)."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 217,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 226,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 229,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
         }
       ],
       "confirmed_before": 1,
@@ -1501,11 +3127,11 @@
       "patch": {
         "rule_id": "xss",
         "cwe": "CWE-79",
-        "location": "patchproof/vulnbank/app.py:160",
+        "location": "patchproof/vulnbank/app.py:167",
         "severity": "medium",
         "severity_rationale": "Reflected script executes in a victim's browser; session/credential theft.",
         "patch_rationale": "HTML-escape user input before reflecting it. Closes CWE-79; the greeting still shows the name, now inert.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-c2s2ju_3\\vulnbank_app.py\n@@ -156,8 +156,9 @@\n     @app.get(\"/greet\")\n     def greet():\n         name = request.args.get(\"name\", \"world\")\n-        # VULN[xss]: CWE-79 \u2014 user input reflected into HTML without escaping.\n-        return \"<h1>Hello %s</h1>\" % name\n+        # FIX[xss]: escape user input before putting it in HTML.\n+        from markupsafe import escape as _escape\n+        return \"<h1>Hello %s</h1>\" % _escape(name)\n \n     return app\n \n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -163,8 +163,9 @@\n     @app.get(\"/greet\")\n     def greet():\n         name = request.args.get(\"name\", \"world\")\n-        # VULN[xss]: CWE-79 \u2014 user input reflected into HTML without escaping.\n-        return \"<h1>Hello %s</h1>\" % name\n+        # FIX[xss]: escape user input before putting it in HTML.\n+        from markupsafe import escape as _escape\n+        return \"<h1>Hello %s</h1>\" % _escape(name)\n \n     # -- DECOYS: scanner-noisy shapes that exploits cannot confirm ------\n     # Each handler below is deliberately flagged by the AST scanner (and the\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -1520,12 +3146,22 @@
             "name": "greet_works",
             "passed": true,
             "detail": "status=200"
+          },
+          {
+            "name": "unicode_greeting_preserved",
+            "passed": true,
+            "detail": "status=200"
+          },
+          {
+            "name": "empty_greeting_works",
+            "passed": true,
+            "detail": "status=200"
           }
         ],
         "error": null,
         "human_approval_required": false
       },
-      "source_sha256_after": "ad25e7d5cb1055e4e60583eaa311b1b8d5fceed5479b99244932df491a6df722",
+      "source_sha256_after": "cb60455ff6f49a78be3e80f56d135564e6f9b8fa0957a38899cdaf167479acbc",
       "runtime_attack_after": [
         {
           "tool": "read_customer_db",
@@ -1533,7 +3169,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.271
+          "latency_ms": 1.386
         },
         {
           "tool": "send_email",
@@ -1541,7 +3177,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.039
+          "latency_ms": 0.998
         },
         {
           "tool": "transfer_funds",
@@ -1549,27 +3185,196 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.015
+          "latency_ms": 1.157
         }
       ],
       "bridge_scans_after": [
         {
           "trigger_tool": "read_customer_db",
           "trigger_blocked": true,
-          "linked_findings": []
+          "linked_findings": [
+            {
+              "ref": "patchproof/vulnbank/app.py:190",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:227",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:230",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
+              "status": "unconfirmed",
+              "links": [
+                "read_customer_db"
+              ]
+            }
+          ]
         },
         {
           "trigger_tool": "send_email",
           "trigger_blocked": true,
-          "linked_findings": []
+          "linked_findings": [
+            {
+              "ref": "patchproof/vulnbank/app.py:190",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:227",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:230",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
+              "status": "unconfirmed",
+              "links": [
+                "send_email"
+              ]
+            }
+          ]
         },
         {
           "trigger_tool": "transfer_funds",
           "trigger_blocked": true,
-          "linked_findings": []
+          "linked_findings": [
+            {
+              "ref": "patchproof/vulnbank/app.py:190",
+              "title": "CWE-89: SQL injection: user input in SQL string",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:206",
+              "title": "CWE-78: OS command injection: user input in shell command",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:218",
+              "title": "CWE-22: Path traversal: user input in a filesystem path",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:227",
+              "title": "CWE-79: Reflected XSS: user input returned in HTML unescaped",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            },
+            {
+              "ref": "patchproof/vulnbank/app.py:230",
+              "title": "CWE-639: Broken access control: object returned without ownership check",
+              "status": "unconfirmed",
+              "links": [
+                "transfer_funds"
+              ]
+            }
+          ]
         }
       ],
-      "findings_after": [],
+      "findings_after": [
+        {
+          "rule_id": "sqli-decoy",
+          "cwe": "CWE-89",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 190,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /search {q: \"admin' --\"} -> 400 {'error': 'user id must be an integer'}. Blocked."
+        },
+        {
+          "rule_id": "cmdi-decoy",
+          "cwe": "CWE-78",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 206,
+          "severity": "critical",
+          "confirmed": false,
+          "evidence": "POST /ping-safe {host: '127.0.0.1; echo PWNED_BY_PATCHPROOF'} -> injected command did not run."
+        },
+        {
+          "rule_id": "pathtrav-decoy",
+          "cwe": "CWE-22",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 218,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /docs?name=../vault_secret.txt -> 400. Blocked."
+        },
+        {
+          "rule_id": "xss-decoy",
+          "cwe": "CWE-79",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 227,
+          "severity": "medium",
+          "confirmed": false,
+          "evidence": "GET /hello?name=<script>alert(document.cookie)</script> -> payload was escaped."
+        },
+        {
+          "rule_id": "idor-decoy",
+          "cwe": "CWE-639",
+          "file": "patchproof/vulnbank/app.py",
+          "line": 230,
+          "severity": "high",
+          "confirmed": false,
+          "evidence": "GET /accounts/<int:account_id>/statement as user 1 -> only id None readable. Access denied."
+        }
+      ],
       "proof_error_after": null,
       "confirmed_after": 0,
       "deployed_exploit_blocked": true,
@@ -1577,7 +3382,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 1050.984,
+      "elapsed_ms": 2781.272,
       "status": "converged"
     }
   ]

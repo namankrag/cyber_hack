@@ -342,7 +342,7 @@ Artifacts: `reports/platform_dashboard.html`, `reports/loop_report.json`,
 `reports/scorecard.json` + `reports/scorecard.html`, and
 `reports/tuned/scorecard.json` + `scorecard.html`.
 
-Validate with one root run: `pytest -q` -> **178 passed, 1 skipped** (the
+Validate with one root run: `pytest -q` -> **257 passed, 1 skipped** (the
 skip is the Semgrep-engine test; Semgrep is not installed, so the platform
 uses its graceful AST fallback).
 
