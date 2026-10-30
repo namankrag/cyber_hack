@@ -1,0 +1,15 @@
+# --- Core enforcement gateway (no API keys needed) ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+pyyaml>=6.0.1
+rich>=13.7.0          # pretty console output for the demo
+
+# --- Optional LLM-based detection layer (needs a free API key) ---
+# Uncomment the provider you use. The core runs fine without these.
+google-genai>=0.3.0   # Google Gemini (free tier) — primary detector
+# groq>=0.11.0        # Groq (free tier) — fast fallback
+
+# --- Dev / tests ---
+pytest>=8.0.0
+httpx>=0.27.0         # for testing the FastAPI endpoint
