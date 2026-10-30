@@ -1,9 +1,10 @@
 [project]
 name = "agentshield"
-version = "0.1.0"
+version = "0.2.0"
 description = "A policy enforcement layer that secures the AI agent at the tool boundary, not just the prompt."
 requires-python = ">=3.11"
 readme = "README.md"
+license = { text = "MIT" }
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -11,6 +12,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["agentshield*"]
+
+# Ship the bundled default policy inside the wheel so an installed package
+# finds a policy without relying on the process working directory.
+[tool.setuptools.package-data]
+agentshield = ["data/*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

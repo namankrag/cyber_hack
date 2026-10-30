@@ -153,11 +153,35 @@ silently weaken enforcement.
 
 ---
 
+## Security model (v0.2)
+
+Hardened after a code review. Key properties:
+
+- **Provenance is not self-asserted.** Trust (user vs. untrusted) comes from the
+  harness via an in-process `trusted_scope` or an HMAC token minted from
+  `AGENTSHIELD_HARNESS_SECRET` — never from the request/tool-call payload. A
+  `source` claim without a valid token resolves to **UNTRUSTED**. Without a
+  secret set, the gateway runs in *insecure dev mode* (flagged in `/health`).
+- **Enforcement is unavoidable at the execution path.** `/v1/check` is an
+  advisory *decision* point; the real *enforcement* point is the `guard`
+  wrapper (`agentshield.enforce`) and the MCP middleware, which run a tool only
+  on ALLOW and raise otherwise.
+- **Auth + bounds.** Set `AGENTSHIELD_API_KEY` to require a key on every HTTP
+  endpoint, including `/v1/audit`; the audit `limit` is bounded.
+- **Strict config/policy.** Empty/unknown detectors, out-of-range thresholds,
+  unknown sensitivities, and typo'd policy keys fail at startup, not silently.
+- **Audit redaction.** Sensitive argument keys are redacted before writing;
+  `tail()` reads from the end of the file.
+
+See [`THREAT_MODEL.md`](THREAT_MODEL.md) for what this does and does **not**
+protect against. Prompt-injection detection is defense in depth, not a guarantee.
+
 ## Status
 
 Working: domain model, heuristic detection, policy engine, fail-closed logic,
-audit log, FastAPI gateway, **MCP gateway (protocol-layer enforcement via the
-official MCP SDK)**, HTTP + MCP demos, test suite (11 passing).
+audit log (redacted), **MCP gateway (protocol-layer enforcement)**, `guard`
+PEP, trusted-provenance resolution, auth-gated HTTP gateway, HTTP + MCP demos,
+test suite (**26 passing**, incl. security-boundary tests).
 
-Next: LLM detector wired to a live key (Gemini/Groq), ProtectAI `llm-guard`
-model detector as a drop-in, approval-queue dashboard.
+Next: LLM detector wired to a live key (Gemini/Groq); session/nonce-bound
+provenance tokens; upstream MCP proxy passthrough; approval-queue dashboard.

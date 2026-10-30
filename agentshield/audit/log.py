@@ -1,49 +1,98 @@
 """Append-only, structured audit log.
 
-Every enforcement decision is written as one JSON line. JSONL is chosen on
-purpose: it is append-only (tamper-evident-friendly), trivially greppable in
-a demo, and streams straight into Postgres / Elastic / S3 when you scale —
-no schema migration needed to change what you capture.
+Every enforcement decision is written as one JSON line. JSONL is append-only,
+trivially greppable in a demo, and streams into Postgres / Elastic / S3 when
+you scale — no schema migration to change what you capture.
 
-Each record is self-contained: the full tool call, the decision, every reason,
-and every detector verdict. That's what lets a security reviewer reconstruct
-*exactly* why the gateway did what it did, months later.
+Security notes (from review):
+  * Records can contain sensitive tool arguments, so values under configured
+    sensitive keys are redacted before they are written. Redaction is a
+    best-effort control, not a guarantee — treat the audit file as sensitive,
+    restrict its permissions, and set retention/rotation in production.
+  * `tail()` reads the file from the end rather than parsing the whole thing,
+    so it stays fast as the log grows.
 """
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
+from typing import Any
 
 from ..models import EnforcementResult
 
+_REDACTED = "«redacted»"
+
 
 class AuditLog:
-    def __init__(self, path: str | Path = "audit.log.jsonl") -> None:
+    def __init__(self, path: str | Path = "audit.log.jsonl",
+                 redact_keys: list[str] | None = None) -> None:
         self.path = Path(path)
+        self.redact_keys = {k.lower() for k in (redact_keys or [])}
         self._lock = threading.Lock()  # safe under the async gateway's threadpool
+
+    # --- redaction ---------------------------------------------------------
+    def _redact(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                k: (_REDACTED if k.lower() in self.redact_keys else self._redact(v))
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [self._redact(v) for v in value]
+        return value
 
     def record(self, result: EnforcementResult) -> None:
         entry = {
             "ts": result.evaluated_at,
             "call_id": result.call.id,
             "tool": result.call.tool_name,
-            "arguments": result.call.arguments,
+            "arguments": self._redact(result.call.arguments),
             "source": result.call.source.value,
             "decision": result.decision.value,
             "fail_closed": result.fail_closed,
             "reasons": [r.model_dump() for r in result.reasons],
             "detections": [d.model_dump() for d in result.detections],
-            "metadata": result.call.metadata,
+            "metadata": self._redact(result.call.metadata),
         }
         line = json.dumps(entry, default=str)
         with self._lock:
+            # Audit-write failure must not take the gateway down silently, but
+            # it also must not be swallowed — surface it to the caller/logs.
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
 
     def tail(self, n: int = 20) -> list[dict]:
-        """Read back the last n entries (for the dashboard / API)."""
-        if not self.path.exists():
+        """Return the last `n` entries, reading from the end of the file."""
+        if n <= 0 or not self.path.exists():
             return []
-        lines = self.path.read_text(encoding="utf-8").splitlines()
-        return [json.loads(line) for line in lines[-n:]]
+        lines = _read_last_lines(self.path, n)
+        out = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return out
+
+
+def _read_last_lines(path: Path, n: int, block: int = 8192) -> list[str]:
+    """Read the last `n` lines without loading the whole file into memory."""
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        end = fh.tell()
+        buffer = b""
+        newlines = 0
+        pos = end
+        while pos > 0 and newlines <= n:
+            read = min(block, pos)
+            pos -= read
+            fh.seek(pos)
+            chunk = fh.read(read)
+            buffer = chunk + buffer
+            newlines = buffer.count(b"\n")
+        text = buffer.decode("utf-8", errors="replace")
+    return text.splitlines()[-n:]

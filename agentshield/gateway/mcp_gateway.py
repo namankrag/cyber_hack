@@ -16,12 +16,22 @@ front doors).
 Provenance note: MCP does not itself carry "did the user ask for this, or did
 a document?". Provenance must be supplied by the harness wrapping the agent —
 it is established *outside* the model, which is the whole point. Callers tag a
-tool call by adding an `_agentshield` object to its arguments:
+tool call by adding an `_agentshield` object to its arguments, where any
+source above `untrusted` must be backed by a valid HMAC token (see
+provenance.py and mint_token):
 
-    {"to": "...", "_agentshield": {"source": "untrusted", "context": "<doc>"}}
+    {"to": "...", "_agentshield": {"source": "user", "token": "<hmac>",
+                                   "context": "<doc>"}}
 
-The middleware strips that tag before the real tool sees the arguments.
-Untagged calls default to UNTRUSTED for high-sensitivity tools (fail-closed).
+The middleware strips that tag before the real tool sees the arguments. An
+asserted source with no valid token resolves to UNTRUSTED (fail-closed), so a
+tag placed by the agent or by injected content cannot elevate trust.
+
+SCOPE NOTE: this gateway registers a set of built-in DEMO tools so the
+enforcement is visible end to end. It does not yet proxy an arbitrary upstream
+MCP server — wrapping a real upstream (forwarding list_tools/call_tool through
+the same middleware) is the documented next step. The enforcement model is
+identical for real tools.
 """
 from __future__ import annotations
 
@@ -31,7 +41,8 @@ import mcp.types as mcp_types
 from mcp.server.mcpserver import MCPServer
 
 from ..engine_factory import AgentShield
-from ..models import Decision, ToolCall, TrustLevel
+from ..models import Decision, ToolCall
+from ..provenance import resolve
 
 _TAG = "_agentshield"
 
@@ -57,10 +68,13 @@ class EnforcementMiddleware:
         name = ctx.params.get("name")
         arguments = dict(ctx.params.get("arguments") or {})
 
-        # Pull provenance tag out of the arguments (if the harness supplied one)
-        # so the real tool never sees it.
+        # Pull the provenance tag out of the arguments so the real tool never
+        # sees it. The tag's asserted source is only honored if it carries a
+        # valid HMAC token minted from the harness secret — otherwise the call
+        # resolves to UNTRUSTED. The agent (and any injected content) can place
+        # a tag in the arguments, but cannot forge the token.
         tag = arguments.pop(_TAG, {}) or {}
-        source = _coerce_source(tag.get("source"))
+        source = resolve(tag.get("source"), tag.get("token"))
         context = str(tag.get("context", ""))
 
         call = ToolCall(
@@ -95,17 +109,6 @@ class EnforcementMiddleware:
             content=[mcp_types.TextContent(type="text", text=text)],
             is_error=True,
         )
-
-
-def _coerce_source(value: Any) -> TrustLevel:
-    if value is None:
-        # No provenance declared → treat as untrusted so high-sensitivity
-        # tools fail closed. Low-sensitivity tools are still allowed by policy.
-        return TrustLevel.UNTRUSTED
-    try:
-        return TrustLevel(str(value))
-    except ValueError:
-        return TrustLevel.UNTRUSTED
 
 
 def build_gateway(shield: AgentShield | None = None) -> MCPServer:

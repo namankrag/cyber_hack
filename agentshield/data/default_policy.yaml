@@ -1,0 +1,51 @@
+# AgentShield default policy
+# -------------------------------------------------------------------------
+# This is authored to be read by a security reviewer, not just an engineer.
+# Each tool declares its sensitivity and who is allowed to trigger it; the
+# `defaults` block decides what happens on injection, untrusted sources, and
+# uncertainty. Everything biases fail-closed.
+
+version: 1
+
+defaults:
+  # A tool nobody declared here is treated with suspicion, never allowed.
+  unknown_tool: require_approval
+
+  # A confirmed injection attempt...
+  on_detector_threat_high_sensitivity: deny          # ...driving a risky tool = hard stop
+  on_detector_threat_low_sensitivity: require_approval
+
+  # A call whose instruction came from untrusted content (a web page, an
+  # email, a retrieved document) rather than the user...
+  on_untrusted_high_sensitivity: deny                # ...must not touch risky tools
+  on_untrusted_low_sensitivity: allow                # ...reading/searching is fine
+
+  # If a detector can't run (missing key, timeout), don't silently pass.
+  fail_closed_on_detector_error: true
+  detector_error_decision: require_approval
+
+tools:
+  # ---- low-sensitivity: read-only, safe to run broadly ----
+  search_web:
+    sensitivity: low
+    allow: true
+
+  read_document:
+    sensitivity: low
+    allow: true
+
+  # ---- high-sensitivity: real-world side effects ----
+  send_email:
+    sensitivity: high
+    allow: true
+    require_approval: true          # a human always confirms outbound mail
+
+  read_customer_db:
+    sensitivity: high
+    allow: true
+    allow_sources: [user, system]   # only a direct user/app request may query it
+    on_disallowed_source: deny      # an agent nudged by a document cannot
+
+  transfer_funds:
+    sensitivity: high
+    allow: false                    # not permitted via the agent at all, yet

@@ -62,8 +62,11 @@ class ToolCall(BaseModel):
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
 
-    # Provenance of the instruction that led here.
-    source: TrustLevel = TrustLevel.USER
+    # Provenance of the instruction that led here. Defaults to UNTRUSTED so
+    # that anything which fails to establish real provenance is treated as
+    # hostile (fail-closed). Trust is raised only via trusted state — never
+    # by the caller's own claim. See provenance.py.
+    source: TrustLevel = TrustLevel.UNTRUSTED
 
     # The raw content the agent was processing when it decided to make this
     # call (e.g. the document body, the web page text). This is what the

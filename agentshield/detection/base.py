@@ -42,6 +42,7 @@ def build_detectors(config) -> list[Detector]:
                 LLMDetector(
                     provider=config.llm_provider,
                     threshold=config.injection_threshold,
+                    timeout_s=getattr(config, "llm_timeout_s", 8.0),
                 )
             )
         else:

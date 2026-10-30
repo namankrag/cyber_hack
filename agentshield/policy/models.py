@@ -8,15 +8,25 @@ contract the YAML must satisfy.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..models import Decision
+
+# Forbid unknown keys everywhere so a typo'd policy fails loudly at startup
+# instead of silently doing nothing (e.g. "requires_approval: true" misspelled).
+_STRICT = ConfigDict(extra="forbid")
 
 
 class ToolPolicy(BaseModel):
     """Rules for one named tool."""
 
-    sensitivity: str = "low"          # "low" | "high" — high = impactful action
+    model_config = _STRICT
+
+    # Literal, not free string: an unrecognized sensitivity is now a startup
+    # error, not silently treated as low.
+    sensitivity: Literal["low", "high"] = "low"
     allow: bool = True                # baseline: is this tool permitted at all?
 
     # Force a human in the loop for this tool regardless of trust/detection.
@@ -33,6 +43,8 @@ class ToolPolicy(BaseModel):
 
 class PolicyDefaults(BaseModel):
     """Org-wide fallbacks applied when no tool-specific rule decides."""
+
+    model_config = _STRICT
 
     # The heart of fail-closed: how to treat a tool with no policy at all.
     unknown_tool: Decision = Decision.REQUIRE_APPROVAL
@@ -54,7 +66,9 @@ class PolicyDefaults(BaseModel):
 
 
 class Policy(BaseModel):
-    version: int = 1
+    model_config = _STRICT
+
+    version: int = Field(1, ge=1)     # must be a positive, known schema version
     defaults: PolicyDefaults = Field(default_factory=PolicyDefaults)
     tools: dict[str, ToolPolicy] = Field(default_factory=dict)
 

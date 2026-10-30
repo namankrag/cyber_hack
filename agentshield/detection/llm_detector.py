@@ -8,6 +8,14 @@ injections that regexes miss. It is deliberately defensive:
     can never silently weaken enforcement.
   * It asks the model for a strict JSON verdict and parses conservatively; any
     parse failure is treated as a detector error (fail-closed), not a pass.
+  * Calls are bounded by a timeout; input is size-capped (context/args
+    truncated) before being sent.
+
+DATA-SHARING NOTICE: enabling this detector sends the tool-call CONTEXT and
+ARGUMENTS to the configured third-party provider (Google / Groq). That content
+may be sensitive. Treat it as a data-sharing feature: enable it deliberately,
+scope what reaches it, and prefer the heuristic-only path where data must not
+leave your environment. (A local-model detector is a planned alternative.)
 
 Providers: "gemini" (Google AI Studio free tier) or "groq" (free tier).
 """
@@ -33,7 +41,8 @@ _SYSTEM = (
 
 class LLMDetector(Detector):
     def __init__(self, provider: str = "gemini", threshold: float = 0.5,
-                 model: str | None = None) -> None:
+                 model: str | None = None, timeout_s: float = 8.0) -> None:
+        self.timeout_s = timeout_s
         self.provider = provider.lower()
         self.threshold = threshold
         self.model = model
@@ -44,8 +53,14 @@ class LLMDetector(Detector):
             f"CONTENT:\n{call.context[:6000]}\n\n"
             f"TOOL CALL:\n{call.tool_name}({json.dumps(call.arguments)[:2000]})"
         )
+        import concurrent.futures as cf
+
         try:
-            raw = self._complete(prompt)
+            with cf.ThreadPoolExecutor(max_workers=1) as ex:
+                raw = ex.submit(self._complete, prompt).result(timeout=self.timeout_s)
+        except cf.TimeoutError:
+            return DetectionResult(detector=self.name,
+                                   error=f"timeout after {self.timeout_s}s")
         except Exception as exc:  # noqa: BLE001 - never crash the pipeline
             return DetectionResult(detector=self.name, error=str(exc))
 

@@ -20,7 +20,8 @@ class AgentShield:
         self.policy = load_policy(self.config.policy_path)
         self.detectors = build_detectors(self.config)
         self.engine = PolicyEngine(self.policy, self.detectors)
-        self.audit = AuditLog(self.config.audit_path)
+        self.audit = AuditLog(self.config.audit_path,
+                              redact_keys=self.config.redact_keys)
 
     def check(self, call: ToolCall) -> EnforcementResult:
         result = self.engine.evaluate(call)
