@@ -51,10 +51,12 @@ def guard(
 
     `context_arg` names a kwarg (if present) whose value is the untrusted
     content the detectors should scan; it is still forwarded to `fn`.
+    Async tool functions are supported transparently: the same check runs
+    before the coroutine is awaited, and a forged verdict from the body
+    is mapped the same way.
     """
 
-    @functools.wraps(fn)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def _check(args: tuple, kwargs: dict) -> None:
         argmap = _bind_arguments(fn, args, kwargs)
         context = str(argmap.get(context_arg, "")) if context_arg else ""
         call = ToolCall(
@@ -67,22 +69,40 @@ def guard(
         result = shield.check(call)
         if result.decision is not Decision.ALLOW:
             raise PolicyViolation(result)
+
+
+
+    def _mark_guarded(w: Callable[..., Any]) -> Callable[..., Any]:
+        w.__agentshield_guarded__ = True  # type: ignore[attr-defined]
+        try:
+            del w.__wrapped__  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+        return w
+
+    if inspect.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def awrapper(*args: Any, **kwargs: Any) -> Any:
+            _check(args, kwargs)
+            try:
+                return await fn(*args, **kwargs)
+            except PolicyViolation as exc:
+                raise RuntimeError(
+                    "tool body raised PolicyViolation after execution; "
+                    "verdict forgery is not permitted") from exc
+        return _mark_guarded(awrapper)
+
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        _check(args, kwargs)
         try:
             return fn(*args, **kwargs)
         except PolicyViolation as exc:
-            # The tool body must not forge enforcement verdicts: a block
-            # raised *after* the body ran would contradict the ALLOW audit
-            # record. Surface it loudly instead of letting it pass as a deny.
             raise RuntimeError(
                 "tool body raised PolicyViolation after execution; "
                 "verdict forgery is not permitted") from exc
 
-    wrapper.__agentshield_guarded__ = True  # type: ignore[attr-defined]
-    try:
-        del wrapper.__wrapped__  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
-    return wrapper
+    return _mark_guarded(wrapper)
 
 
 def _bind_arguments(fn: Callable[..., Any], args: tuple, kwargs: dict) -> dict:
