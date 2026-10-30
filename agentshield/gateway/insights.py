@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..approval.queue import ApprovalQueue
+from ..approval.queue import ApprovalQueue, args_hash
 from ..engine_factory import AgentShield
 from ..models import Decision
 from ..policy.integrity import digest_of
@@ -373,6 +373,13 @@ def approvals(shield: AgentShield, limit: int = 500) -> dict:
     entries = shield.audit.tail(limit)
     queue = ApprovalQueue(shield.audit)
     pending = queue.pending()
+    for hold in pending:
+        if not hold.get("args_hash"):
+            hold["args_hash"] = args_hash(hold.get("tool", ""),
+                                          hold.get("arguments", {}),
+                                          hold.get("metadata", {}),
+                                          hold.get("trace_id"),
+                                          hold.get("parent_id"))
     recent = [e for e in entries if e.get("approval") in ("approve", "deny", "consumed")]
     recent.sort(key=lambda e: _epoch(e.get("ts")) or 0, reverse=True)
     approved = sum(1 for e in recent if e.get("approval") == "approve")

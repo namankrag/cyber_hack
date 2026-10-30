@@ -112,7 +112,10 @@ def test_approvals_pending_and_decide_flow(tmp_path, monkeypatch):
     r = c.post("/v1/approvals/decide",
                json={"call_id": call_id, "verdict": "approve"})
     assert r.status_code == 200
-    assert r.json() == {"approval_of": call_id, "approval": "approve"}
+    data = r.json()
+    assert data["approval_of"] == call_id and data["approval"] == "approve"
+    assert data["entry"]["approval"] == "approve"
+    assert data["summary"]["pending"] == 0
     assert c.get("/v1/approvals/pending").json()["pending"] == []
     # A repeat decision on the spent hold is rejected, not double-applied.
     r = c.post("/v1/approvals/decide",

@@ -314,6 +314,16 @@ def _approval_queue():
     return ApprovalQueue(shield.audit)
 
 
+@app.get("/v1/approvals", dependencies=[Depends(require_api_key)])
+def approvals() -> dict:
+    """Console queue view: pending holds plus decision summary.
+
+    Shape matches web ApprovalsResponse. The legacy
+    /v1/approvals/pending projection is kept below for older clients.
+    """
+    return insights.approvals(shield)
+
+
 @app.get("/v1/approvals/pending", dependencies=[Depends(require_api_key)])
 def approvals_pending() -> dict:
     """Held calls awaiting a human decision (auth-gated, like /v1/audit)."""
@@ -337,20 +347,44 @@ def approvals_pending() -> dict:
     return {"pending": out}
 
 
-@app.post("/v1/approvals/decide", dependencies=[Depends(require_api_key)])
-def approvals_decide(body: DecideRequest) -> dict:
-    """Record a single-use human decision on a held call (approve/deny)."""
-    if body.verdict not in ("approve", "deny"):
+class DecidePathRequest(BaseModel):
+    verdict: str = Field(min_length=1)
+    approver: str = "human"
+
+
+def _decide_approval(call_id: str, verdict: str, approver: str) -> dict:
+    """Single approvals decision handler: one live decision per held call.
+
+    Unknown holds -> 404, spent holds -> 409, bad verdicts -> 400. The
+    approval stays single-use and bound to the trace-aware args hash
+    (see agentshield.approval.queue).
+    """
+    if verdict not in ("approve", "deny"):
         raise HTTPException(status_code=400, detail="verdict must be 'approve' or 'deny'")
     try:
-        entry = _approval_queue().decide(body.call_id, body.verdict,
-                                         approver=body.approver)
+        entry = _approval_queue().decide(call_id, verdict,
+                                         approver=approver)
     except ValueError as exc:
         msg = str(exc)
         if "no such held call" in msg:
             raise HTTPException(status_code=404, detail=msg)
         raise HTTPException(status_code=409, detail=msg)
-    return {"approval_of": entry["approval_of"], "approval": entry["approval"]}
+    summary = insights.approvals(shield)["summary"]
+    return {"approval_of": entry["approval_of"], "approval": entry["approval"],
+            "entry": entry, "summary": summary}
+
+
+@app.post("/v1/approvals/decide", dependencies=[Depends(require_api_admin)])
+def approvals_decide(body: DecideRequest) -> dict:
+    """Body-carried decision alias, declared BEFORE the {call_id} route so
+    "decide" is never captured as a call ID."""
+    return _decide_approval(body.call_id, body.verdict, body.approver)
+
+
+@app.post("/v1/approvals/{call_id}", dependencies=[Depends(require_api_admin)])
+def approvals_decide_one(call_id: str, body: DecidePathRequest) -> dict:
+    """Record a single-use human decision addressed at the held call."""
+    return _decide_approval(call_id, body.verdict, body.approver)
 
 
 @app.get("/v1/evidence", dependencies=[Depends(require_api_key)])
