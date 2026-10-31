@@ -182,6 +182,18 @@ export function Dot({ tone = "neutral" }: { tone?: "ok" | "warn" | "error" | "li
   return <span className={cn("ws-dot", `is-${tone}`)} aria-hidden="true" />;
 }
 
+export function SkeletonPill({ label = "Loading" }: { label?: string }) {
+  return (
+    <span className="ws-skeleton-pill" role="status" aria-label={label} />
+  );
+}
+
+export function ValueSkeleton({ label = "Loading value" }: { label?: string }) {
+  return (
+    <span className="ws-skeleton ws-value-skel" role="status" aria-label={label} />
+  );
+}
+
 export function StatCard({
   label,
   value,
@@ -190,6 +202,7 @@ export function StatCard({
   tone,
   badge,
   visual,
+  loading = false,
 }: {
   label: string;
   value: ReactNode;
@@ -198,7 +211,30 @@ export function StatCard({
   tone?: "purple" | "lime" | "navy" | "peach" | "cream" | "blue";
   badge?: ReactNode;
   visual?: ReactNode;
+  loading?: boolean;
 }) {
+  if (loading) {
+    return (
+      <div className={cn("ws-stat", tone && `is-${tone}`)} aria-busy="true" aria-label={`${typeof label === "string" ? label : "Statistic"} loading`}>
+        <div className="ws-stat-top">
+          <span className="ws-stat-label">{label}</span>
+          {Icon ? (
+            <span className="ws-stat-icon" aria-hidden="true">
+              <Icon className="h-4 w-4" strokeWidth={1.7} />
+            </span>
+          ) : null}
+        </div>
+        <div className="ws-stat-main">
+          <div className="ws-stat-value" aria-hidden="true">
+            <span className="ws-skeleton ws-stat-value-skel" />
+          </div>
+        </div>
+        <div className="ws-stat-meta" aria-hidden="true">
+          <span className="ws-skeleton ws-meta-skel" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cn("ws-stat", tone && `is-${tone}`)}>
       <div className="ws-stat-top">
@@ -283,16 +319,16 @@ export function DetectionList({
         <div
           key={`${detection.detector}-${index}`}
           className={cn(
-            "rounded-[11px] border px-3 py-2.5",
+            "ws-detection",
             detection.error
-              ? "border-[#efd28a] bg-[#fffaf0]"
+              ? "is-warn"
               : detection.is_threat
-                ? "border-[#efb5ae] bg-[#fff7f5]"
-                : "border-[#d9d6d0] bg-[#f8f7f4]",
+                ? "is-threat"
+                : "is-clean",
           )}
         >
           <div className="ws-between">
-            <span className="ws-mono text-[10.5px] font-semibold">
+            <span className="ws-mono ws-fs-body font-semibold">
               {detection.detector}
             </span>
             <div className="ws-row">
@@ -303,13 +339,13 @@ export function DetectionList({
               ) : (
                 <StatusBadge tone="ok">clean</StatusBadge>
               )}
-              <span className="ws-mono text-[10px] text-[#6f6c66]">
+              <span className="ws-mono ws-fs-meta ws-ink-soft">
                 {detection.score.toFixed(2)}
               </span>
             </div>
           </div>
           {detection.error ? (
-            <p className="mt-1.5 text-[10.5px] leading-relaxed text-[#6b4a00]">
+            <p className="ws-detection-error">
               {detection.error}
             </p>
           ) : null}
@@ -356,20 +392,26 @@ export function Distribution({
   hold,
   deny,
   labels = true,
+  percentages = false,
 }: {
   allow: number;
   hold: number;
   deny: number;
   labels?: boolean;
+  percentages?: boolean;
 }) {
   const total = allow + hold + deny;
   if (total <= 0) {
     return (
-      <div className="ws-dist" aria-label="No decisions in this window">
-        <span style={{ width: "100%", background: "#e7e4de" }} />
-      </div>
+      <>
+        <div className="ws-dist is-empty" role="img" aria-label="No activity in this window">
+          <span />
+        </div>
+        <p className="ws-hint">No activity in this window.</p>
+      </>
     );
   }
+  const percent = (value: number) => `${((value / total) * 100).toFixed(1)}%`;
   return (
     <>
       <div
@@ -385,12 +427,15 @@ export function Distribution({
         <div className="ws-legend">
           <span className="ws-legend-item">
             <span className="ws-legend-swatch is-allow" /> Allow {formatNumber(allow)}
+            {percentages ? ` · ${percent(allow)}` : null}
           </span>
           <span className="ws-legend-item">
             <span className="ws-legend-swatch is-hold" /> Approval {formatNumber(hold)}
+            {percentages ? ` · ${percent(hold)}` : null}
           </span>
           <span className="ws-legend-item">
             <span className="ws-legend-swatch is-deny" /> Deny {formatNumber(deny)}
+            {percentages ? ` · ${percent(deny)}` : null}
           </span>
         </div>
       ) : null}
@@ -402,7 +447,13 @@ export function Bars({
   rows,
   empty = "No activity in this window.",
 }: {
-  rows: Array<{ label: string; value: number; note?: string; tone?: "navy" | "purple" | "lime" | "red" }>;
+  rows: Array<{
+    label: string;
+    value: number;
+    note?: string;
+    tone?: "allow" | "hold" | "deny";
+    segments?: Array<{ value: number; tone: "allow" | "hold" | "deny" }>;
+  }>;
   empty?: string;
 }) {
   if (!rows.length) return <p className="ws-hint">{empty}</p>;
@@ -414,13 +465,31 @@ export function Bars({
           <span className="ws-truncate" title={row.label}>
             {row.label}
           </span>
-          <span className="ws-bar-track">
+          {row.segments?.length ? (
             <span
-              className={cn("ws-bar-fill", row.tone && `is-${row.tone}`)}
-              style={{ width: `${Math.max(2, (row.value / max) * 100)}%` }}
-            />
-          </span>
-          <span className="ws-mono text-[9.5px] text-[#6f6c66]">
+              className="ws-bar-track is-stacked"
+              role="img"
+              aria-label={`${row.label}: ${row.segments.map((segment) => `${segment.value} ${segment.tone}`).join(", ")}`}
+            >
+              {row.segments.map((segment, index) =>
+                segment.value > 0 ? (
+                  <span
+                    key={index}
+                    className={cn("ws-bar-seg", `is-${segment.tone}`)}
+                    style={{ width: `${(segment.value / Math.max(row.value, 1)) * 100}%` }}
+                  />
+                ) : null,
+              )}
+            </span>
+          ) : (
+            <span className="ws-bar-track" aria-hidden="true">
+              <span
+                className={cn("ws-bar-fill", row.tone && `is-${row.tone}`)}
+                style={{ width: `${row.value > 0 ? (row.value / max) * 100 : 0}%` }}
+              />
+            </span>
+          )}
+          <span className="ws-mono ws-fs-label ws-ink-soft">
             {row.note ?? formatNumber(row.value)}
           </span>
         </div>
@@ -442,32 +511,74 @@ export function TrendChart({
   }>;
 }) {
   if (!series.length) {
-    return <p className="ws-hint">No bucketed traffic in this window.</p>;
+    return <p className="ws-hint">No activity in this window.</p>;
   }
   const max = Math.max(...series.map((point) => point.total), 1);
+  const sumAllow = series.reduce((sum, point) => sum + point.allow, 0);
+  const sumHold = series.reduce((sum, point) => sum + point.require_approval, 0);
+  const sumDeny = series.reduce((sum, point) => sum + point.deny, 0);
+  const last = series.length - 1;
+  const tickIndexes = Array.from(
+    new Set([0, Math.ceil(last / 3), Math.ceil((2 * last) / 3), last]),
+  );
   return (
-    <div>
-      <div className="ws-chart" aria-label="Decision volume over time">
+    <div className="ws-chart-frame">
+      <span className="ws-chart-ymax">{formatNumber(max)}</span>
+      <div className="ws-chart-gridlines" aria-hidden="true">
+        <i />
+        <i />
+      </div>
+      <div
+        className="ws-chart"
+        role="img"
+        aria-label={`Decision volume: ${formatNumber(sumAllow)} allowed, ${formatNumber(sumHold)} held for approval, ${formatNumber(sumDeny)} denied across ${series.length} buckets`}
+      >
         {series.map((point) => {
-          const dominant =
-            point.deny >= point.require_approval && point.deny >= point.allow
-              ? "is-deny"
-              : point.require_approval >= point.allow
-                ? "is-hold"
-                : "is-allow";
+          const tip = `${formatClock(point.ts * 1000)} \u00b7 ${point.total} calls \u00b7 ${point.allow} allow \u00b7 ${point.require_approval} hold \u00b7 ${point.deny} deny`;
+          if (point.total <= 0) {
+            return (
+              <span key={point.ts} className="ws-chart-bucket is-empty" aria-hidden="true" />
+            );
+          }
           return (
             <span
               key={point.ts}
-              className={cn("ws-chart-bar", point.total > 0 && dominant)}
-              style={{ height: `${Math.max(2, (point.total / max) * 100)}%` }}
-              title={`${formatClock(point.ts * 1000)} · ${point.total} calls · ${point.allow} allow · ${point.require_approval} hold · ${point.deny} deny`}
-            />
+              className="ws-chart-bucket"
+              tabIndex={0}
+              aria-label={tip}
+            >
+              {point.allow > 0 ? (
+                <span
+                  className="ws-chart-seg is-allow"
+                  style={{ height: `${(point.allow / point.total) * 100}%` }}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {point.require_approval > 0 ? (
+                <span
+                  className="ws-chart-seg is-hold"
+                  style={{ height: `${(point.require_approval / point.total) * 100}%` }}
+                  aria-hidden="true"
+                />
+              ) : null}
+              {point.deny > 0 ? (
+                <span
+                  className="ws-chart-seg is-deny"
+                  style={{ height: `${(point.deny / point.total) * 100}%` }}
+                  aria-hidden="true"
+                />
+              ) : null}
+              <span className="ws-chart-tip" aria-hidden="true">
+                {tip}
+              </span>
+            </span>
           );
         })}
       </div>
-      <div className="ws-chart-axis">
-        <span>{formatClock(series[0].ts * 1000)}</span>
-        <span>{formatClock(series[series.length - 1].ts * 1000)}</span>
+      <div className="ws-chart-axis" aria-hidden="true">
+        {tickIndexes.map((index) => (
+          <span key={index}>{formatClock(series[index].ts * 1000)}</span>
+        ))}
       </div>
     </div>
   );
@@ -501,9 +612,9 @@ export function LoadingState({ rows = 3, label = "Loading gateway data" }: { row
     <div className="ws-loading-grid" aria-label={label} aria-busy="true">
       {Array.from({ length: rows }).map((_, index) => (
         <div className="ws-loading-card" key={index}>
-          <div className="ws-skeleton ws-loading-line" style={{ width: "42%" }} />
-          <div className="ws-skeleton ws-loading-line" style={{ width: "66%", height: 24 }} />
-          <div className="ws-skeleton ws-loading-line" style={{ width: "80%" }} />
+          <div className="ws-skeleton ws-loading-line is-w1" />
+          <div className="ws-skeleton ws-loading-line is-w2" />
+          <div className="ws-skeleton ws-loading-line is-w3" />
         </div>
       ))}
     </div>
@@ -529,7 +640,7 @@ export function ErrorState({
 }) {
   const hint = failureHint(failure);
   return (
-    <div className={cn("ws-error-card", compact && "py-2.5")}>
+    <div className={cn("ws-error-card", compact && "is-compact")}>
       <span className="ws-error-icon">
         {failure.kind === "network" ? (
           <ShieldAlert className="h-4 w-4" strokeWidth={1.8} />
@@ -593,8 +704,11 @@ export function LiveMeta({
             ? "Refreshing"
             : lastUpdated
               ? `Live · ${formatClock(lastUpdated)}`
-              : "Connecting"}
+              : null}
       </span>
+      {!isStale && !isRefreshing && !lastUpdated ? (
+        <SkeletonPill label="Loading live status" />
+      ) : null}
       {intervalLabel ? <span className="hidden sm:inline">· {intervalLabel}</span> : null}
     </span>
   );
@@ -635,18 +749,23 @@ export function SuccessNote({ children }: { children: ReactNode }) {
 
 export function Sparkline({
   values,
-  tone = "purple",
+  tone = "navy",
 }: {
   values: number[];
-  tone?: "purple" | "lime" | "peach" | "navy";
+  tone?: "allow" | "hold" | "deny" | "navy";
 }) {
-  const max = Math.max(...values, 1);
+  const max = Math.max(...values, 0);
+  if (!values.length || max <= 0) {
+    return (
+      <span className="ws-sparkline is-empty" role="img" aria-label="No activity in this window" />
+    );
+  }
   return (
     <span className={cn("ws-sparkline", `is-${tone}`)} aria-hidden="true">
       {values.slice(-18).map((value, index) => (
         <span
           key={index}
-          style={{ height: `${Math.max(8, (value / max) * 100)}%` }}
+          style={{ height: `${value > 0 ? (value / max) * 100 : 0}%` }}
         />
       ))}
     </span>

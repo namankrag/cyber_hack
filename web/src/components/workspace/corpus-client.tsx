@@ -5,6 +5,7 @@ import {
   Database,
   FileText,
   FilterX,
+  Lock,
   RefreshCw,
   RotateCcw,
   Search,
@@ -19,6 +20,7 @@ import { formatNumber, titleCase } from "@/lib/api/format";
 import type { CorpusDoc, CorpusResponse, ResetResponse } from "@/lib/api/types";
 import { useLiveData } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
+import { useSession } from "./session-context";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { CopyButton } from "@/components/workspace/copy-button";
 import {
@@ -38,6 +40,8 @@ import {
 } from "@/components/workspace/ui";
 
 export function CorpusClient() {
+  const { role, requireAdmin, noteUnauthorized } = useSession();
+  const isAdmin = role === "admin";
   const [search, setSearch] = useState("");
   const [lang, setLang] = useState("all");
   const [label, setLabel] = useState("all");
@@ -106,11 +110,20 @@ export function CorpusClient() {
       setSelectedId(null);
       await corpus.refresh();
     } catch (error) {
+      noteUnauthorized(error);
       setFailure(toApiFailure(error));
       setConfirmReset(false);
     } finally {
       setResetting(false);
     }
+  };
+
+  const requestReset = () => {
+    setFailure(null);
+    setSuccess(null);
+    // Operators get the admin sign-in dialog; after a successful sign-in the
+    // confirm dialog opens automatically via the pending action.
+    requireAdmin(() => setConfirmReset(true));
   };
 
   return (
@@ -139,14 +152,15 @@ export function CorpusClient() {
             <button
               type="button"
               className="ws-btn is-danger is-sm"
-              onClick={() => {
-                setFailure(null);
-                setSuccess(null);
-                setConfirmReset(true);
-              }}
+              onClick={requestReset}
               disabled={resetting || !corpus.data?.available}
             >
-              <RotateCcw className="h-3.5 w-3.5" /> Re-ingest corpus
+              {isAdmin ? (
+                <RotateCcw className="h-3.5 w-3.5" />
+              ) : (
+                <Lock className="h-3.5 w-3.5" />
+              )}{" "}
+              {isAdmin ? "Re-ingest corpus" : "Admin only · Re-ingest"}
             </button>
           </>
         }
@@ -425,7 +439,7 @@ function DocDetail({ doc }: { doc: CorpusDoc }) {
           </span>
         ) : null}
       </div>
-      <div className="ws-doc-id text-[13px]">{doc.id}</div>
+      <div className="ws-doc-id ws-fs-body">{doc.id}</div>
       <KeyValue
         items={[
           { label: "Language", value: doc.lang ?? "not recorded" },

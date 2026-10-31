@@ -6,6 +6,7 @@ import {
   FlaskConical,
   GitCompare,
   History,
+  Lock,
   Play,
   RefreshCw,
   RotateCcw,
@@ -31,6 +32,7 @@ import type {
 } from "@/lib/api/types";
 import { useLiveData } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
+import { useSession } from "./session-context";
 import { CopyButton } from "@/components/workspace/copy-button";
 import { JsonBlock } from "@/components/workspace/json-block";
 import {
@@ -47,6 +49,7 @@ import {
   LoadingState,
   PageHeader,
   ReasonList,
+  SkeletonPill,
   SourceBadge,
   StageList,
   StatusBadge,
@@ -77,6 +80,8 @@ function formFromScenario(scenario: RedteamScenario): PayloadForm {
 }
 
 export function RedteamClient() {
+  const { role, setSignInOpen, noteUnauthorized } = useSession();
+  const isAdmin = role === "admin";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PayloadForm | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -130,6 +135,12 @@ export function RedteamClient() {
 
   const run = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isAdmin) {
+      // Operators get the admin sign-in dialog. The run is an explicit
+      // submit, so it is not auto-retried after sign-in.
+      setSignInOpen(true);
+      return;
+    }
     setFormError(null);
     setFailure(null);
     setResult(null);
@@ -151,6 +162,7 @@ export function RedteamClient() {
       setHistoryCall(response.on.call_id);
       await Promise.all([history.refresh(), enforce.refresh()]);
     } catch (error) {
+      noteUnauthorized(error);
       setFailure(toApiFailure(error));
     } finally {
       setRunning(false);
@@ -172,7 +184,7 @@ export function RedteamClient() {
         actions={
           <>
             <StatusBadge tone={enforce.data?.enforced ? "ok" : "warn"}>
-              Global switch: {enforce.data ? (enforce.data.enforced ? "ON" : "OFF") : "unknown"}
+              Global switch: {enforce.data ? (enforce.data.enforced ? "ON" : "OFF") : enforce.failure ? "unknown" : <SkeletonPill label="Loading enforcement state" />}
             </StatusBadge>
             <button
               type="button"
@@ -294,7 +306,7 @@ export function RedteamClient() {
                 <form className="ws-stack" onSubmit={run}>
                   <div className="ws-stack-sm">
                     <span className="ws-label">Selected scenario</span>
-                    <div className="text-[13px] font-semibold tracking-[-0.02em]">
+                    <div className="ws-fs-body font-semibold">
                       {selected.title}
                     </div>
                     <p className="ws-hint">{selected.description}</p>
@@ -385,9 +397,13 @@ export function RedteamClient() {
                     >
                       {running ? (
                         <InlineLoading label="Running both sides" />
-                      ) : (
+                      ) : isAdmin ? (
                         <>
                           <Play className="h-3.5 w-3.5" /> Run isolated test
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-3.5 w-3.5" /> Admin only · Run
                         </>
                       )}
                     </button>
@@ -596,18 +612,18 @@ export function RedteamClient() {
                             }
                           }}
                         >
-                          <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                          <td className="is-nowrap ws-fs-body ws-ink-soft">
                             {formatTimestamp(entry.ts)}
                           </td>
                           <td>
                             <DecisionBadge decision={entry.decision} short />
                           </td>
-                          <td className="font-mono text-[10.5px]">{entry.tool}</td>
+                          <td className="font-mono ws-fs-body">{entry.tool}</td>
                           <td>
                             <SourceBadge source={entry.source} />
                           </td>
-                          <td className="font-mono text-[9.5px]">{scenario}</td>
-                          <td className="font-mono text-[9.5px]">{entry.call_id}</td>
+                          <td className="font-mono ws-fs-meta">{scenario}</td>
+                          <td className="font-mono ws-fs-meta">{entry.call_id}</td>
                         </tr>
                       );
                     })}
@@ -672,7 +688,7 @@ function RunSide({
         <span className="ws-label">{label}</span>
         <DecisionBadge decision={side.decision} />
       </div>
-      <p className="mt-2 text-[12px] font-semibold leading-snug">{side.headline}</p>
+      <p className="mt-2 ws-fs-body font-semibold leading-snug">{side.headline}</p>
       <div className="ws-wrap mt-2">
         <StatusBadge tone={side.fail_closed ? "warn" : "neutral"}>
           fail closed: {side.fail_closed ? "yes" : "no"}
@@ -685,7 +701,7 @@ function RunSide({
         <span className="ws-label">Call ID</span>
         <CopyButton value={side.call_id} label="Copy" />
       </div>
-      <div className="font-mono text-[9.5px] text-[#4d4a45]">{side.call_id}</div>
+      <div className="font-mono ws-fs-meta ws-ink-soft">{side.call_id}</div>
       <div className="mt-3">
         <span className="ws-label">Stages</span>
         <StageList stages={side.stages} />

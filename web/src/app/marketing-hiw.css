@@ -56,7 +56,7 @@
   max-width: 23rem;
   padding-bottom: 5px;
   color: rgba(248, 247, 244, 0.5);
-  font-size: 14.5px;
+  font-size: var(--as-fs-body-lg);
   line-height: 1.72;
 }
 
@@ -101,7 +101,7 @@
   padding-top: 2px;
   color: rgba(248, 247, 244, 0.3);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.06em;
 }
 
@@ -136,7 +136,7 @@
   margin-bottom: 3px;
   color: rgba(248, 247, 244, 0.35);
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -144,7 +144,7 @@
 .hiw-step-copy strong {
   display: block;
   color: rgba(248, 247, 244, 0.6);
-  font-size: 17px;
+  font-size: var(--as-fs-h-sm);
   font-weight: 550;
   letter-spacing: -0.035em;
   line-height: 1.2;
@@ -160,7 +160,7 @@
   max-width: 27rem;
   margin-top: 0;
   color: rgba(248, 247, 244, 0.48);
-  font-size: 11.5px;
+  font-size: var(--as-fs-meta);
   line-height: 1.65;
   opacity: 0;
   max-height: 0;
@@ -222,7 +222,7 @@
   margin-left: auto;
   color: rgba(248, 247, 244, 0.34);
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.08em;
 }
 
@@ -259,7 +259,7 @@
   border-bottom: 1px solid #e7e3dd;
   color: #8c867e;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.04em;
 }
 
@@ -284,7 +284,7 @@
   border: 1px solid #d6d1c9;
   border-radius: 999px;
   color: #828078;
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -308,12 +308,12 @@
   border-radius: 10px;
   background: #f1eee8;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--as-fs-meta);
   line-height: 1.8;
 }
 
 .hiw-inspect pre .code-dim {
-  color: #a49d94;
+  color: var(--muted);
 }
 
 .hiw-inspect pre .code-key {
@@ -337,8 +337,8 @@
   align-items: center;
   gap: 6px;
   margin-top: 18px;
-  color: #928c83;
-  font-size: 9px;
+  color: var(--muted);
+  font-size: var(--as-fs-label);
   line-height: 1.4;
 }
 
@@ -384,13 +384,13 @@
 
 .trust-node strong {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
 }
 
 .trust-node small {
   color: #99928a;
-  font-size: 8px;
+  font-size: var(--as-fs-label);
 }
 
 .trust-badge {
@@ -399,7 +399,7 @@
   border: 1px solid #e0dbd4;
   border-radius: 999px;
   font-family: var(--font-mono);
-  font-size: 5.8px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -459,12 +459,12 @@
   border-radius: 10px;
   background: #f1eee8;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   line-height: 1.75;
 }
 
 .policy-code .code-dim {
-  color: #a49d94;
+  color: var(--muted);
 }
 
 .policy-code .code-key {
@@ -490,7 +490,7 @@
   border-radius: 7px;
   background: #f5faf2;
   color: #4c7043;
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
 }
 
 .policy-result-row > span {
@@ -500,7 +500,7 @@
 }
 
 .policy-result-row .mono-label {
-  font-size: 6px;
+  font-size: var(--as-fs-label);
 }
 
 .policy-result-row.is-muted {
@@ -540,12 +540,12 @@
 
 .enforce-card .mono-label {
   color: rgba(248, 247, 244, 0.4);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
 }
 
 .enforce-verdict {
   color: var(--lime);
-  font-size: 37px;
+  font-size: var(--as-fs-h-xl);
   font-weight: 600;
   letter-spacing: -0.06em;
   line-height: 1.1;
@@ -553,7 +553,7 @@
 
 .enforce-card p {
   color: rgba(248, 247, 244, 0.52);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
 }
 
 .enforce-meta {
@@ -571,7 +571,7 @@
   border: 1px solid #e1ddd6;
   border-radius: 999px;
   color: #777169;
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
 }
 
 .enforce-audit {
@@ -583,7 +583,7 @@
 
 .enforce-audit .mono-label {
   color: #9f988f;
-  font-size: 6px;
+  font-size: var(--as-fs-label);
 }
 
 .enforce-audit p {
@@ -591,7 +591,7 @@
   overflow: hidden;
   color: #666059;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -601,7 +601,7 @@
   margin-top: 4px;
   color: #9b948a;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
 }
 
 .hiw-stage-bottom {
@@ -634,7 +634,7 @@
   align-items: center;
   gap: 5px;
   color: rgba(248, 247, 244, 0.58);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   font-weight: 550;
   transition: color 180ms ease, gap 180ms ease;
 }

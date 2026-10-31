@@ -7,6 +7,7 @@ import {
   Clock3,
   FilterX,
   KeyRound,
+  Lock,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -28,6 +29,7 @@ import type {
 } from "@/lib/api/types";
 import { useLiveData } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
+import { useSession } from "./session-context";
 import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
 import { CopyButton } from "@/components/workspace/copy-button";
 import { JsonBlock } from "@/components/workspace/json-block";
@@ -61,6 +63,8 @@ export function ApprovalsClient() {
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { role, requireAdmin, noteUnauthorized } = useSession();
+  const isAdmin = role === "admin";
 
   const approvals = useLiveData<ApprovalsResponse>("/v1/approvals?limit=500", {
     intervalMs: 15_000,
@@ -118,12 +122,21 @@ export function ApprovalsClient() {
       setSelectedCall(result.entry.call_id);
       await approvals.refresh();
     } catch (error) {
+      noteUnauthorized(error);
       setFailure(toApiFailure(error));
       setPendingVerdict(null);
       await approvals.refresh();
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const requestVerdict = (verdict: Verdict) => {
+    setFailure(null);
+    setSuccess(null);
+    // Operators get the admin sign-in dialog; after a successful sign-in the
+    // verdict dialog opens automatically via the pending action.
+    requireAdmin(() => setPendingVerdict(verdict));
   };
 
   return (
@@ -209,7 +222,7 @@ export function ApprovalsClient() {
           <div className="ws-grid ws-grid-4">
             <div className="ws-verdict">
               <div className="ws-verdict-label">Single use</div>
-              <div className="ws-verdict-value text-[19px]">
+              <div className="ws-verdict-value ws-fs-hmd">
                 {approvals.data?.capabilities.single_use ? "Enforced" : "Unknown"}
               </div>
               <p className="ws-verdict-detail">
@@ -218,7 +231,7 @@ export function ApprovalsClient() {
             </div>
             <div className="ws-verdict">
               <div className="ws-verdict-label">Argument bound</div>
-              <div className="ws-verdict-value text-[19px]">
+              <div className="ws-verdict-value ws-fs-hmd">
                 {approvals.data?.capabilities.args_hash_bound ? "Enforced" : "Unknown"}
               </div>
               <p className="ws-verdict-detail">
@@ -227,7 +240,7 @@ export function ApprovalsClient() {
             </div>
             <div className="ws-verdict">
               <div className="ws-verdict-label">Expiry</div>
-              <div className="ws-verdict-value text-[19px]">
+              <div className="ws-verdict-value ws-fs-hmd">
                 {approvals.data?.capabilities.expiry ? "Enforced" : "Not implemented"}
               </div>
               <p className="ws-verdict-detail">
@@ -237,7 +250,7 @@ export function ApprovalsClient() {
             </div>
             <div className="ws-verdict">
               <div className="ws-verdict-label">Decision endpoint</div>
-              <div className="ws-verdict-value text-[19px]">
+              <div className="ws-verdict-value ws-fs-hmd">
                 {approvals.data?.capabilities.decide ? "Available" : "Unknown"}
               </div>
               <p className="ws-verdict-detail">
@@ -332,14 +345,14 @@ export function ApprovalsClient() {
                       }}
                       aria-label={`Inspect held call ${entry.call_id}`}
                     >
-                      <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                      <td className="is-nowrap ws-fs-body ws-ink-soft">
                         {formatRelative(entry.ts)}
                       </td>
-                      <td className="font-mono text-[10.5px]">{entry.tool}</td>
+                      <td className="font-mono ws-fs-body">{entry.tool}</td>
                       <td>
                         <SourceBadge source={entry.source} />
                       </td>
-                      <td className="max-w-[280px] text-[10.5px] text-[#4d4a45]">
+                      <td className="ws-max-w-cell ws-fs-body ws-ink-soft">
                         <span className="line-clamp-2">
                           {entry.reasons[0]?.detail ?? "Held by policy."}
                         </span>
@@ -347,7 +360,7 @@ export function ApprovalsClient() {
                       <td>
                         <button
                           type="button"
-                          className="ws-link font-mono text-[9.5px]"
+                          className="ws-link font-mono ws-fs-meta"
                           onClick={(event) => {
                             event.stopPropagation();
                             setSelectedCall(entry.call_id);
@@ -473,26 +486,28 @@ export function ApprovalsClient() {
                         <button
                           type="button"
                           className="ws-btn is-lime is-sm"
-                          onClick={() => {
-                            setFailure(null);
-                            setSuccess(null);
-                            setPendingVerdict("approve");
-                          }}
-                          disabled={submitting || !approver.trim()}
+                          onClick={() => requestVerdict("approve")}
+                          disabled={submitting || (isAdmin && !approver.trim())}
                         >
-                          <Check className="h-3.5 w-3.5" /> Approve once
+                          {isAdmin ? (
+                            <Check className="h-3.5 w-3.5" />
+                          ) : (
+                            <Lock className="h-3.5 w-3.5" />
+                          )}{" "}
+                          {isAdmin ? "Approve once" : "Admin only · Approve"}
                         </button>
                         <button
                           type="button"
                           className="ws-btn is-danger is-sm"
-                          onClick={() => {
-                            setFailure(null);
-                            setSuccess(null);
-                            setPendingVerdict("deny");
-                          }}
-                          disabled={submitting || !approver.trim()}
+                          onClick={() => requestVerdict("deny")}
+                          disabled={submitting || (isAdmin && !approver.trim())}
                         >
-                          <X className="h-3.5 w-3.5" /> Deny
+                          {isAdmin ? (
+                            <X className="h-3.5 w-3.5" />
+                          ) : (
+                            <Lock className="h-3.5 w-3.5" />
+                          )}{" "}
+                          {isAdmin ? "Deny" : "Admin only · Deny"}
                         </button>
                       </div>
                     </div>
@@ -558,7 +573,7 @@ export function ApprovalsClient() {
                         }
                       }}
                     >
-                      <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                      <td className="is-nowrap ws-fs-body ws-ink-soft">
                         {formatTimestamp(entry.ts)}
                       </td>
                       <td>
@@ -570,17 +585,17 @@ export function ApprovalsClient() {
                           <StatusBadge tone="neutral">consumed</StatusBadge>
                         )}
                       </td>
-                      <td className="font-mono text-[10.5px]">{entry.tool}</td>
-                      <td className="font-mono text-[9.5px]">
+                      <td className="font-mono ws-fs-body">{entry.tool}</td>
+                      <td className="font-mono ws-fs-meta">
                         {entry.approval_of ?? "—"}
                       </td>
-                      <td className="font-mono text-[9.5px]">
+                      <td className="font-mono ws-fs-meta">
                         {entry.args_hash ?? "—"}
                       </td>
-                      <td className="font-mono text-[9.5px]">
+                      <td className="font-mono ws-fs-meta">
                         {entry.consumed_by ?? "—"}
                       </td>
-                      <td className="font-mono text-[9.5px]">{entry.call_id}</td>
+                      <td className="font-mono ws-fs-meta">{entry.call_id}</td>
                     </tr>
                   ))}
                 </tbody>

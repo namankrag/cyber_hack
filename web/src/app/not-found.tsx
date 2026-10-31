@@ -1,4 +1,10 @@
 import Link from "next/link";
+import "./marketing-core.css";
+import "./marketing-sections.css";
+import "./marketing-hiw.css";
+import "./marketing-lab.css";
+import "./marketing-docs.css";
+import "./marketing-responsive.css";
 import { ArrowLeft } from "lucide-react";
 import { Brand } from "@/components/marketing/logo";
 

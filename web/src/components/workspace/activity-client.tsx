@@ -229,7 +229,7 @@ export function ActivityClient() {
         <StatCard
           label="Entries in sample"
           value={audit.data ? formatNumber(entries.length) : "—"}
-          meta={audit.data ? `limit ${limit} · newest first` : "Waiting for gateway"}
+          meta={audit.data ? `limit ${limit} · newest first` : audit.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"}
           icon={Activity}
         />
         <StatCard
@@ -410,20 +410,20 @@ export function ActivityClient() {
                         }}
                         aria-label={`Inspect ${entry.tool} decision ${entry.decision}`}
                       >
-                        <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                        <td className="is-nowrap ws-fs-body ws-ink-soft">
                           {formatTimestamp(entry.ts)}
                         </td>
                         <td>
                           <DecisionBadge decision={entry.decision} short />
                         </td>
-                        <td className="font-mono text-[10.5px]">{entry.tool}</td>
+                        <td className="font-mono ws-fs-body">{entry.tool}</td>
                         <td>
                           <SourceBadge source={entry.source} />
                         </td>
-                        <td className="text-[10.5px]">
+                        <td className="ws-fs-body">
                           {agentName}
                           {sessionId ? (
-                            <span className="block font-mono text-[9px] text-[#8b8881]">
+                            <span className="block font-mono ws-fs-meta ws-ink-faint">
                               {sessionId}
                             </span>
                           ) : null}
@@ -431,7 +431,7 @@ export function ActivityClient() {
                         <td>
                           <button
                             type="button"
-                            className="ws-link font-mono text-[9.5px]"
+                            className="ws-link font-mono ws-fs-meta"
                             onClick={(event) => {
                               event.stopPropagation();
                               setSelectedCall(entry.call_id);
@@ -657,7 +657,7 @@ export function ActivityClient() {
                       label: "Call ID",
                       value: (
                         <span className="flex items-center gap-2">
-                          <span className="font-mono text-[10px]">{result.call_id}</span>
+                          <span className="font-mono ws-fs-meta">{result.call_id}</span>
                           <CopyButton value={result.call_id} label="Copy" />
                         </span>
                       ),

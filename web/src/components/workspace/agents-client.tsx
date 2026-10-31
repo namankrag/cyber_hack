@@ -142,7 +142,7 @@ export function AgentsClient({ initialSession }: { initialSession: string | null
         <StatCard
           label="Agent / session pairs"
           value={agents.data ? formatNumber(sessions.length) : "—"}
-          meta={agents.data ? `from ${formatNumber(agents.data.sample.entries_read)} audit entries` : "Waiting for gateway"}
+          meta={agents.data ? `from ${formatNumber(agents.data.sample.entries_read)} audit entries` : agents.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"}
           icon={Users}
         />
         <StatCard
@@ -240,7 +240,7 @@ export function AgentsClient({ initialSession }: { initialSession: string | null
                     >
                       <div className="ws-between">
                         <span className="ws-session-name">
-                          <Bot className="h-4 w-4 text-[#6f6c66]" />
+                          <Bot className="h-4 w-4 ws-ink-soft" />
                           <span className="ws-truncate">{session.agent}</span>
                         </span>
                         {session.deny > 0 ? (
@@ -266,7 +266,7 @@ export function AgentsClient({ initialSession }: { initialSession: string | null
                           <strong>{formatNumber(session.deny)}</strong> deny
                         </span>
                       </div>
-                      <div className="ws-between text-[9.5px] text-[#8b8881]">
+                      <div className="ws-between ws-fs-meta ws-ink-faint">
                         <span>{session.tools.length} tool{session.tools.length === 1 ? "" : "s"}</span>
                         <span>{formatRelative(session.last_seen)}</span>
                       </div>

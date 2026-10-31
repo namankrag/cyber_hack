@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import "./tokens.css";
 import "./globals.css";
-import "./marketing-core.css";
-import "./marketing-sections.css";
-import "./marketing-hiw.css";
-import "./marketing-lab.css";
-import "./marketing-docs.css";
-import "./marketing-responsive.css";
 
 export const metadata: Metadata = {
   title: {

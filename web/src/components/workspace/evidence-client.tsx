@@ -238,7 +238,7 @@ export function EvidenceClient() {
                         value: (
                           <span className="flex items-center gap-2">
                             <StatusBadge tone="ok">{evidence.data.health.status}</StatusBadge>
-                            <span className="text-[10px]">
+                            <span className="ws-fs-meta">
                               {evidence.data.health.detectors.join(", ")}
                             </span>
                           </span>
@@ -307,13 +307,13 @@ export function EvidenceClient() {
                       {evidence.data.entries.slice(0, 5).map((entry) => (
                         <div
                           key={entry.call_id}
-                          className="flex items-center justify-between gap-2 rounded-[9px] border border-[#e9e6e0] bg-[#fbfaf7] px-2.5 py-2"
+                          className="ws-evidence-note"
                         >
                           <span className="min-w-0">
-                            <span className="block truncate font-mono text-[10px]">
+                            <span className="block truncate font-mono ws-fs-meta">
                               {entry.tool}
                             </span>
-                            <span className="block truncate text-[9px] text-[#8b8881]">
+                            <span className="block truncate ws-fs-meta ws-ink-faint">
                               {formatTimestamp(entry.ts)} · {entry.call_id}
                             </span>
                           </span>
@@ -395,7 +395,7 @@ function ReportCard({ report }: { report: EvidenceReport }) {
             <span className="ws-badge is-purple">historical</span>
           )}
         </div>
-        <span className="font-mono text-[11px] font-semibold">{report.value}</span>
+        <span className="font-mono ws-fs-meta font-semibold">{report.value}</span>
       </div>
 
       <p className="ws-doc-text mt-2">{report.detail}</p>
@@ -416,17 +416,17 @@ function ReportCard({ report }: { report: EvidenceReport }) {
             {report.artifacts.map((artifact) => (
               <div
                 key={artifact.path}
-                className="flex items-center justify-between gap-2 rounded-[9px] border border-[#e9e6e0] bg-[#fbfaf7] px-2.5 py-2 text-[10px]"
+                className="ws-evidence-note ws-fs-meta"
               >
                 <span className="flex min-w-0 items-center gap-2">
                   {artifact.available ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#2e5209]" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 ws-ink-ok" />
                   ) : (
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#7a5300]" />
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 ws-ink-warn" />
                   )}
                   <span className="ws-truncate font-mono">{artifact.path}</span>
                 </span>
-                <span className="shrink-0 font-mono text-[9px] text-[#6f6c66]">
+                <span className="shrink-0 font-mono ws-fs-meta ws-ink-soft">
                   {artifact.available
                     ? `${formatBytes(artifact.bytes)} · ${formatTimestamp(artifact.updated_at)}`
                     : "unavailable"}

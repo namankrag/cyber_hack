@@ -3,15 +3,15 @@
    ========================================================================== */
 
 .site {
-  --paper: #eae9e7;
-  --cream: #f8f7f4;
-  --navy: #191d35;
-  --purple: #b67ae8;
-  --purple-soft: #e9d8f7;
-  --lime: #c9f45a;
-  --ink: #171717;
-  --muted: #777777;
-  --line: #dad8d5;
+  --paper: var(--as-paper);
+  --cream: var(--as-cream);
+  --navy: var(--as-navy);
+  --purple: var(--as-purple);
+  --purple-soft: var(--as-purple-soft);
+  --lime: var(--as-lime);
+  --ink: var(--as-ink);
+  --muted: var(--as-muted);
+  --line: var(--as-line);
   background: var(--paper);
   color: var(--ink);
   overflow: clip;
@@ -54,9 +54,9 @@
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--as-fs-meta);
   font-weight: 500;
-  letter-spacing: 0.15em;
+  letter-spacing: var(--as-track-label);
   line-height: 1.4;
   text-transform: uppercase;
   color: #5d5b57;
@@ -82,7 +82,7 @@
 
 .site .mono-label {
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--as-fs-label);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -90,7 +90,7 @@
 
 .site .lede {
   color: #5f5c57;
-  font-size: 17px;
+  font-size: var(--as-fs-h-sm);
   line-height: 1.65;
   max-width: 31rem;
 }
@@ -101,7 +101,7 @@
   gap: 6px;
   padding-bottom: 3px;
   border-bottom: 1.5px solid var(--ink);
-  font-size: 12.5px;
+  font-size: var(--as-fs-body);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -123,7 +123,7 @@
   padding: 0 22px;
   border: 1.5px solid var(--ink);
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: var(--as-fs-body);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1;
@@ -145,13 +145,13 @@
 .site .btn-sm {
   min-height: 42px;
   padding: 0 17px;
-  font-size: 11.5px;
+  font-size: var(--as-fs-meta);
 }
 
 .site .btn-lg {
   min-height: 54px;
   padding: 0 24px;
-  font-size: 13px;
+  font-size: var(--as-fs-body);
 }
 
 .site .btn-primary {
@@ -316,7 +316,7 @@
   padding: 0 15px;
   border-radius: 999px;
   color: #65615b;
-  font-size: 12px;
+  font-size: var(--as-fs-body);
   font-weight: 550;
   letter-spacing: -0.01em;
   transition: background-color 180ms ease, color 180ms ease;
@@ -399,7 +399,7 @@
   justify-content: space-between;
   padding: 16px 14px;
   border-bottom: 1px solid var(--line);
-  font-size: 26px;
+  font-size: var(--as-fs-h-xl);
   font-weight: 600;
   letter-spacing: -0.05em;
   opacity: 0;
@@ -416,7 +416,7 @@
 
 .mobile-menu-index {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--as-fs-meta);
   font-weight: 500;
   letter-spacing: 0.1em;
   color: #99948c;
@@ -500,7 +500,7 @@
   border-radius: 999px;
   background: var(--cream);
   box-shadow: 2px 2px 0 var(--ink);
-  font-size: 9.5px;
+  font-size: var(--as-fs-label);
   color: #4e4b46;
 }
 
@@ -523,7 +523,7 @@
   border-radius: 999px;
   background: var(--ink);
   color: var(--cream);
-  font-size: 8px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.08em;
 }
 
@@ -586,7 +586,7 @@
   max-width: 32rem;
   margin-top: 30px;
   color: #5c5954;
-  font-size: 16.5px;
+  font-size: var(--as-fs-h-sm);
   line-height: 1.68;
 }
 
@@ -616,7 +616,7 @@
 }
 
 .hero-proof strong {
-  font-size: 22px;
+  font-size: var(--as-fs-h-lg);
   font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 1.1;
@@ -625,7 +625,7 @@
 .hero-proof span:not(.proof-divider) {
   color: #7c7871;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -725,16 +725,16 @@
 }
 
 .hp-brand strong {
-  font-size: 12.5px;
+  font-size: var(--as-fs-body);
   font-weight: 650;
   letter-spacing: -0.025em;
 }
 
 .hp-brand small {
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 500;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--as-track-label);
   color: #8a857d;
 }
 
@@ -747,7 +747,7 @@
   border-radius: 999px;
   background: #ffffff;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.1em;
 }
@@ -778,7 +778,7 @@
   align-items: center;
   gap: 4px;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   color: #9a958e;
 }
 
@@ -813,14 +813,14 @@
 }
 
 .hp-action small {
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   color: #8b867f;
 }
 
 .hp-action strong {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--as-fs-body);
   font-weight: 600;
   letter-spacing: -0.02em;
   text-overflow: ellipsis;
@@ -835,7 +835,7 @@
   background: #f5e3da;
   color: #7a3b27;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.08em;
   white-space: nowrap;
@@ -885,13 +885,13 @@
 }
 
 .hp-node strong {
-  font-size: 9.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .hp-node small {
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   color: #8f8a82;
 }
 
@@ -907,7 +907,7 @@
   background: #f3e5fb;
   color: #704294;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
 }
 
@@ -939,12 +939,12 @@
 
 .hp-verdict .mono-label {
   color: rgba(248, 247, 244, 0.45);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
 }
 
 .hp-verdict strong {
   color: var(--lime);
-  font-size: 29px;
+  font-size: var(--as-fs-h-xl);
   font-weight: 600;
   letter-spacing: -0.055em;
   line-height: 1.1;
@@ -952,7 +952,7 @@
 
 .hp-verdict p {
   color: rgba(248, 247, 244, 0.58);
-  font-size: 9px;
+  font-size: var(--as-fs-label);
 }
 
 .hp-verdict-mark {
@@ -983,13 +983,13 @@
 
 .hp-reasons span {
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   color: #9b968e;
 }
 
 .hp-reasons p {
   color: #5f5a53;
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   line-height: 1.4;
 }
 
@@ -1007,7 +1007,7 @@
   border-top: 1px solid var(--line);
   color: #8f8a82;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.03em;
 }
 
@@ -1031,7 +1031,7 @@
   background: var(--lime);
   box-shadow: 3px 3px 0 var(--ink);
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.06em;
   transform: rotate(-4deg);
@@ -1084,14 +1084,14 @@
 
 .hero-trust-badge small {
   font-family: var(--font-mono);
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.13em;
   color: #948e85;
 }
 
 .hero-trust-badge strong {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.05em;
 }
 
@@ -1138,7 +1138,7 @@
   border-bottom: 1px solid #ece9e4;
   color: #77726a;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.02em;
 }
 
@@ -1148,7 +1148,7 @@
   border-radius: 999px;
   background: #eef8ef;
   color: #317d51;
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -1158,7 +1158,7 @@
   padding-top: 7px;
   color: #6c665e;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   line-height: 1.7;
 }
 
@@ -1192,7 +1192,7 @@
   max-width: 220px;
   color: #76716a;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.08em;
   line-height: 1.7;
   text-transform: uppercase;
@@ -1228,20 +1228,20 @@
 
 .logo-northstar {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--as-fs-meta);
   font-weight: 600;
   letter-spacing: 0.09em;
 }
 
 .logo-luma {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 27px;
+  font-size: var(--as-fs-h-xl);
   font-style: italic;
   letter-spacing: -0.06em;
 }
 
 .logo-polaris {
-  font-size: 14px;
+  font-size: var(--as-fs-body-lg);
   font-weight: 650;
   letter-spacing: 0.04em;
 }
@@ -1255,7 +1255,7 @@
 }
 
 .logo-relay {
-  font-size: 19px;
+  font-size: var(--as-fs-h-md);
   font-weight: 600;
   letter-spacing: -0.055em;
 }
@@ -1281,13 +1281,13 @@
 
 .logo-kindred {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--as-fs-meta);
   font-weight: 600;
-  letter-spacing: 0.15em;
+  letter-spacing: var(--as-track-label);
 }
 
 .logo-nova {
-  font-size: 20px;
+  font-size: var(--as-fs-h-md);
   font-weight: 650;
   letter-spacing: -0.05em;
 }
@@ -1295,7 +1295,7 @@
 .logo-nova sup {
   margin-left: 1px;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.04em;
 }
 
@@ -1308,7 +1308,7 @@
   gap: 6px;
   color: #88837b;
   font-family: var(--font-mono);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.12em;
   transform: translateX(-50%);
   transition: color 180ms ease;

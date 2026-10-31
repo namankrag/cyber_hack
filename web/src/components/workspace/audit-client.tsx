@@ -167,7 +167,7 @@ export function AuditClient({ initialCall }: { initialCall: string | null }) {
         <StatCard
           label="Entries in sample"
           value={audit.data ? formatNumber(entries.length) : "—"}
-          meta={audit.data ? `limit ${limit} · newest first` : "Waiting for gateway"}
+          meta={audit.data ? `limit ${limit} · newest first` : audit.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"}
           icon={Database}
         />
         <StatCard
@@ -344,25 +344,25 @@ export function AuditClient({ initialCall }: { initialCall: string | null }) {
                               }
                             }}
                           >
-                            <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                            <td className="is-nowrap ws-fs-body ws-ink-soft">
                               {formatTimestamp(entry.ts)}
                             </td>
                             <td>
                               <DecisionBadge decision={entry.decision} short />
                             </td>
-                            <td className="font-mono text-[10.5px]">{entry.tool}</td>
+                            <td className="font-mono ws-fs-body">{entry.tool}</td>
                             <td>
                               <SourceBadge source={entry.source} />
                             </td>
-                            <td className="text-[10.5px]">
+                            <td className="ws-fs-body">
                               {agent}
                               {session ? (
-                                <span className="block font-mono text-[9px] text-[#8b8881]">
+                                <span className="block font-mono ws-fs-meta ws-ink-faint">
                                   {session}
                                 </span>
                               ) : null}
                             </td>
-                            <td className="text-[9.5px]">
+                            <td className="ws-fs-meta">
                               {entry.approval ? (
                                 <StatusBadge
                                   tone={entry.approval === "deny" ? "error" : "ok"}
@@ -372,10 +372,10 @@ export function AuditClient({ initialCall }: { initialCall: string | null }) {
                               ) : entry.decision === "require_approval" ? (
                                 <StatusBadge tone="warn">awaiting</StatusBadge>
                               ) : (
-                                <span className="text-[#8b8881]">—</span>
+                                <span className="ws-ink-faint">—</span>
                               )}
                             </td>
-                            <td className="font-mono text-[9.5px]">{entry.call_id}</td>
+                            <td className="font-mono ws-fs-meta">{entry.call_id}</td>
                           </tr>
                         );
                       })}
@@ -459,7 +459,7 @@ export function AuditClient({ initialCall }: { initialCall: string | null }) {
                             }
                           }}
                         >
-                          <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                          <td className="is-nowrap ws-fs-body ws-ink-soft">
                             {formatTimestamp(entry.ts)}
                           </td>
                           <td>
@@ -471,17 +471,17 @@ export function AuditClient({ initialCall }: { initialCall: string | null }) {
                               <StatusBadge tone="neutral">consumed</StatusBadge>
                             )}
                           </td>
-                          <td className="font-mono text-[10.5px]">{entry.tool}</td>
-                          <td className="font-mono text-[9.5px]">
+                          <td className="font-mono ws-fs-body">{entry.tool}</td>
+                          <td className="font-mono ws-fs-meta">
                             {entry.approval_of ?? "—"}
                           </td>
-                          <td className="font-mono text-[9.5px]">
+                          <td className="font-mono ws-fs-meta">
                             {entry.args_hash ?? "—"}
                           </td>
-                          <td className="font-mono text-[9.5px]">
+                          <td className="font-mono ws-fs-meta">
                             {entry.consumed_by ?? "—"}
                           </td>
-                          <td className="font-mono text-[9.5px]">{entry.call_id}</td>
+                          <td className="font-mono ws-fs-meta">{entry.call_id}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -486,7 +486,7 @@
   }
 
   .hero-lede {
-    font-size: 15px;
+    font-size: var(--as-fs-body-lg);
   }
 
   .hero-visual {
@@ -501,7 +501,7 @@
   .hero-sticker {
     top: 1px;
     left: 0;
-    font-size: 6.5px;
+    font-size: var(--as-fs-label);
     padding: 8px 10px;
   }
 
@@ -638,7 +638,7 @@
   }
 
   .hiw-step-copy strong {
-    font-size: 16px;
+    font-size: var(--as-fs-h-sm);
   }
 
   .hiw-stage-top {
@@ -701,7 +701,7 @@
   }
 
   .verdict-main strong {
-    font-size: 27px;
+    font-size: var(--as-fs-h-xl);
   }
 
   .lab-float-card,
@@ -724,7 +724,7 @@
   }
 
   .architecture-head strong {
-    font-size: 11px;
+    font-size: var(--as-fs-meta);
   }
 
   .arch-shield {
@@ -732,7 +732,7 @@
   }
 
   .arch-modules span {
-    font-size: 5.5px;
+    font-size: var(--as-fs-label);
   }
 
   .architecture-foot {
@@ -781,7 +781,7 @@
 
   .docs-pre {
     min-height: 290px;
-    font-size: 9px;
+    font-size: var(--as-fs-label);
     padding: 16px 13px;
   }
 
@@ -876,7 +876,7 @@
   }
 
   .hero-kicker {
-    font-size: 8px;
+    font-size: var(--as-fs-label);
   }
 
   .kicker-badge {
@@ -895,7 +895,7 @@
 
   .hero-lede {
     margin-top: 24px;
-    font-size: 14.5px;
+    font-size: var(--as-fs-body-lg);
     line-height: 1.62;
   }
 
@@ -915,7 +915,7 @@
   }
 
   .hero-proof strong {
-    font-size: 20px;
+    font-size: var(--as-fs-h-md);
   }
 
   .proof-divider {
@@ -937,7 +937,7 @@
 
   .hero-sticker {
     left: 1px;
-    font-size: 5.7px;
+    font-size: var(--as-fs-label);
     padding: 6px 8px;
     gap: 4px;
   }
@@ -1025,11 +1025,11 @@
   }
 
   .hiw-step-copy strong {
-    font-size: 14.5px;
+    font-size: var(--as-fs-body-lg);
   }
 
   .hiw-step-copy > span:last-child {
-    font-size: 10.5px;
+    font-size: var(--as-fs-meta);
   }
 
   .hiw-stage-counter {
@@ -1041,29 +1041,29 @@
   }
 
   .hiw-visual-head {
-    font-size: 6.5px;
+    font-size: var(--as-fs-label);
   }
 
   .hiw-inspect pre {
-    font-size: 8.5px;
+    font-size: var(--as-fs-label);
     padding: 12px;
   }
 
   .trust-node strong {
-    font-size: 8px;
+    font-size: var(--as-fs-label);
   }
 
   .trust-node small {
-    font-size: 7px;
+    font-size: var(--as-fs-label);
   }
 
   .trust-badge {
-    font-size: 5px;
+    font-size: var(--as-fs-label);
     padding: 2px 4px;
   }
 
   .policy-code {
-    font-size: 8px;
+    font-size: var(--as-fs-label);
     padding: 12px;
   }
 
@@ -1076,11 +1076,11 @@
   }
 
   .scenario-text strong {
-    font-size: 11px;
+    font-size: var(--as-fs-meta);
   }
 
   .scenario-text span {
-    font-size: 8.5px;
+    font-size: var(--as-fs-label);
   }
 
   .lab-toolbar > div:nth-of-type(2) {
@@ -1101,7 +1101,7 @@
   }
 
   .lab-event-card p {
-    font-size: 11px !important;
+    font-size: var(--as-fs-meta) !important;
   }
 
   .verdict-card {
@@ -1109,7 +1109,7 @@
   }
 
   .verdict-main strong {
-    font-size: 23px;
+    font-size: var(--as-fs-h-lg);
   }
 
   .verdict-stamp {
@@ -1118,7 +1118,7 @@
   }
 
   .reason-box li {
-    font-size: 7.5px;
+    font-size: var(--as-fs-label);
   }
 
   .lab-shell-bottom > span {
@@ -1131,7 +1131,7 @@
   }
 
   .security-badges span {
-    font-size: 6px;
+    font-size: var(--as-fs-label);
   }
 
   .architecture-card {
@@ -1139,15 +1139,15 @@
   }
 
   .arch-node strong {
-    font-size: 11px;
+    font-size: var(--as-fs-meta);
   }
 
   .arch-node small {
-    font-size: 6.5px;
+    font-size: var(--as-fs-label);
   }
 
   .arch-shield-head strong {
-    font-size: 10.5px;
+    font-size: var(--as-fs-meta);
   }
 
   .arch-modules {
@@ -1156,7 +1156,7 @@
 
   .arch-modules span {
     padding: 3px 4px;
-    font-size: 5px;
+    font-size: var(--as-fs-label);
   }
 
   .arch-modules svg {
@@ -1178,7 +1178,7 @@
 
   .docs-pre {
     min-height: 280px;
-    font-size: 8px;
+    font-size: var(--as-fs-label);
     line-height: 1.75;
   }
 

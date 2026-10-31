@@ -153,7 +153,8 @@ export function AnalyticsClient() {
         <>
           <div className="ws-grid ws-grid-4 ws-metric-grid">
             <StatCard
-              label="Calls evaluated"
+              loading={!metrics.data && !metrics.failure}
+          label="Calls evaluated"
               value={
                 metrics.data ? formatNumber(totals?.evaluated) : "—"
               }
@@ -164,7 +165,7 @@ export function AnalyticsClient() {
                     {formatDelta(metrics.data.deltas.evaluated)}
                   </>
                 ) : (
-                  "Waiting for gateway"
+                  "Gateway unreachable — retry"
                 )
               }
               icon={Activity}
@@ -172,40 +173,43 @@ export function AnalyticsClient() {
               visual={<Sparkline values={totalSeries} tone="navy" />}
             />
             <StatCard
-              label="Allowed"
+              loading={!metrics.data && !metrics.failure}
+          label="Allowed"
               value={metrics.data ? formatNumber(totals?.allowed) : "—"}
               meta={
                 metrics.data
                   ? `${allowRate === null ? "—" : allowRate.toFixed(1)}% of evaluated`
-                  : "Waiting for gateway"
+                  : "Gateway unreachable — retry"
               }
               icon={ShieldCheck}
               tone="lime"
-              visual={<Sparkline values={allowSeries} tone="lime" />}
+              visual={<Sparkline values={allowSeries} tone="allow" />}
             />
             <StatCard
-              label="Denied"
+              loading={!metrics.data && !metrics.failure}
+          label="Denied"
               value={metrics.data ? formatNumber(totals?.blocked) : "—"}
               meta={
                 metrics.data
                   ? `${denyRate === null ? "—" : denyRate.toFixed(1)}% of evaluated`
-                  : "Waiting for gateway"
+                  : "Gateway unreachable — retry"
               }
               icon={ShieldAlert}
               tone="peach"
-              visual={<Sparkline values={denySeries} tone="peach" />}
+              visual={<Sparkline values={denySeries} tone="deny" />}
             />
             <StatCard
-              label="Held for approval"
+              loading={!metrics.data && !metrics.failure}
+          label="Held for approval"
               value={metrics.data ? formatNumber(totals?.held) : "—"}
               meta={
                 metrics.data
                   ? `${holdRate === null ? "—" : holdRate.toFixed(1)}% · ${formatNumber(totals?.pending_approvals)} pending now`
-                  : "Waiting for gateway"
+                  : "Gateway unreachable — retry"
               }
               icon={UserCheck}
               tone="purple"
-              visual={<Sparkline values={holdSeries} tone="purple" />}
+              visual={<Sparkline values={holdSeries} tone="hold" />}
             />
           </div>
 
@@ -337,12 +341,11 @@ export function AnalyticsClient() {
                       note: `${tool.total} · ${tool.deny} deny`,
                       tone:
                         tool.deny > 0
-                          ? "red"
+                          ? "deny"
                           : tool.require_approval > 0
-                            ? "purple"
-                            : "lime",
+                            ? "hold"
+                            : "allow",
                     }))}
-                    empty="No tool calls in this window."
                   />
                 ) : (
                   <LoadingState rows={2} />

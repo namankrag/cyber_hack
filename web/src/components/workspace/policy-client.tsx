@@ -122,12 +122,14 @@ export function PolicyClient() {
 
       <div className="ws-grid ws-grid-4">
         <StatCard
+          loading={!policy.data && !policy.failure}
           label="Policy"
           value={data ? `v${data.version}` : "—"}
-          meta={data ? data.name : "Waiting for gateway"}
+          meta={data ? data.name : policy.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"}
           icon={Scale}
         />
         <StatCard
+          loading={!policy.data && !policy.failure}
           label="Governed tools"
           value={data ? formatNumber(data.tool_count) : "—"}
           meta="Declared tool rules"
@@ -135,6 +137,7 @@ export function PolicyClient() {
           tone="lime"
         />
         <StatCard
+          loading={!policy.data && !policy.failure}
           label="Digest pinned"
           value={data ? (data.digest_pinned ? "Yes" : "No") : "—"}
           meta={
@@ -142,12 +145,13 @@ export function PolicyClient() {
               ? data.digest_pinned
                 ? "AGENTSHIELD_POLICY_SHA256 is set"
                 : "Trust root is in dev mode"
-              : "Waiting for gateway"
+              : policy.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"
           }
           icon={Fingerprint}
           tone={data && !data.digest_pinned ? "purple" : undefined}
         />
         <StatCard
+          loading={!policy.data && !policy.failure}
           label="Integrity"
           value={data ? integrityLabel : "—"}
           meta={data?.notes.integrity ?? "Comparing digest with expected pin"}
@@ -358,7 +362,7 @@ export function PolicyClient() {
                   <tbody>
                     {filteredTools.map((tool) => (
                       <tr key={tool.name}>
-                        <td className="font-mono text-[10.5px] font-semibold">
+                        <td className="font-mono ws-fs-body font-semibold">
                           {tool.name}
                         </td>
                         <td>
@@ -382,15 +386,15 @@ export function PolicyClient() {
                             <StatusBadge tone="neutral">no</StatusBadge>
                           )}
                         </td>
-                        <td className="text-[10.5px]">
+                        <td className="ws-fs-body">
                           {tool.allow_sources.length
                             ? tool.allow_sources.join(", ")
                             : "any"}
                         </td>
-                        <td className="text-[10.5px]">
+                        <td className="ws-fs-body">
                           {titleCase(tool.on_disallowed_source)}
                         </td>
-                        <td className="font-mono text-[9.5px]">
+                        <td className="font-mono ws-fs-meta">
                           {tool.decision_requirement}
                         </td>
                       </tr>

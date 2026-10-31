@@ -1,0 +1,81 @@
+/* ==========================================================================
+   AgentShield shared design tokens — the single source of truth.
+   Imported once in the root layout; both the marketing site (.site) and
+   the workspace (.workspace) alias their prefixed variables to these.
+   Do not add hex literals or font-size literals where a token fits.
+   ========================================================================== */
+
+:root {
+  /* ---- Brand palette (canonical values; drifted copies settled here) ---- */
+  --as-paper: #eae9e7; /* page paper */
+  --as-cream: #f8f7f4; /* card cream */
+  --as-surface: #f8f7f4;
+  --as-white: #fffefa; /* raised white */
+  --as-navy: #191d35;
+  --as-navy-soft: #232847;
+  --as-navy-ink: #0d1024; /* hairlines on navy */
+  --as-purple: #b67ae8; /* fills, dots, active states — never body text */
+  --as-purple-deep: #6d3b9c; /* purple text + focus rings (7.1:1 on cream) */
+  --as-purple-soft: #e9d8f7; /* settled: was #e9d8f7 (site) vs #f0e4fb (ws) */
+  --as-lime: #c9f45a;
+  --as-lime-deep: #556f0c; /* lime text (5.4:1 on cream, 5.3:1 on lime-soft) */
+  --as-lime-soft: #effbd0;
+  --as-ink: #171717;
+
+  /* ---- Text neutrals (WCAG AA on paper + cream) ---- */
+  --as-muted: #5c5a55; /* 5.7:1 paper, 6.4:1 cream */
+  --as-faint: #66625b; /* 5.0:1 paper, 5.7:1 cream */
+
+  /* ---- Lines ---- */
+  --as-line: #dad8d5;
+  --as-line-strong: #bdb9b1;
+  --as-line-soft: #e9e6e0;
+
+  /* ---- Semantic: fills stay bright, text uses *-ink ---- */
+  --as-success: #32966b;
+  --as-success-soft: #e3f4ec;
+  --as-success-border: #b8d9c8;
+  --as-success-ink: #1f6a4a; /* 5.4:1 paper, 6.1:1 cream */
+  --as-warning: #d99b35;
+  --as-warning-soft: #fdf1d9;
+  --as-warning-border: #efd28a;
+  --as-warning-ink: #7a5300; /* 5.7:1 paper, 6.4:1 cream */
+  --as-danger: #d95d5d;
+  --as-danger-soft: #fbe7e5;
+  --as-danger-border: #efb5ae;
+  --as-danger-ink: #973c35; /* 5.7:1 paper, 6.5:1 cream */
+  --as-blue-soft: #e5edfb;
+  --as-peach-soft: #fbe7dc;
+
+  /* ---- Type scale (minimums: 11 label / 12 meta / 13 body+table) ---- */
+  --as-fs-label: 11px; /* uppercase mono labels */
+  --as-fs-meta: 12px; /* secondary / meta text */
+  --as-fs-body: 13px; /* body + table text */
+  --as-fs-body-lg: 14px;
+  --as-fs-h-sm: 16px;
+  --as-fs-h-md: 20px;
+  --as-fs-h-lg: 24px;
+  --as-fs-h-xl: 32px;
+  --as-track-label: 0.08em; /* uppercase mono label tracking */
+
+  /* ---- Spacing (4px base) ---- */
+  --as-sp-1: 4px;
+  --as-sp-2: 8px;
+  --as-sp-3: 12px;
+  --as-sp-4: 16px;
+  --as-sp-5: 20px;
+  --as-sp-6: 24px;
+  --as-sp-8: 32px;
+  --as-sp-12: 48px;
+
+  /* ---- Radius ---- */
+  --as-r-sm: 12px;
+  --as-r-md: 18px;
+  --as-r-lg: 22px;
+  --as-r-pill: 999px;
+
+  /* ---- Shadow + motion ---- */
+  --as-shadow: 0 1px 0 rgba(25, 29, 53, 0.04), 0 10px 28px rgba(25, 29, 53, 0.035);
+  --as-shadow-lift: 0 2px 0 rgba(25, 29, 53, 0.05), 0 16px 40px rgba(25, 29, 53, 0.08);
+  --as-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}

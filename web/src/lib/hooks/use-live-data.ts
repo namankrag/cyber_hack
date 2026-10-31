@@ -9,7 +9,7 @@ interface UseLiveDataOptions {
   enabled?: boolean;
 }
 
-interface UseLiveDataResult<T> {
+export interface UseLiveDataResult<T> {
   data: T | null;
   failure: ApiFailure | null;
   isLoading: boolean;

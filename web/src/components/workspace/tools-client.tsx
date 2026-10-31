@@ -366,10 +366,10 @@ function ToolCard({ tool }: { tool: ToolView }) {
             )}
           </div>
         </div>
-        <div className="ws-between text-[10.5px] text-[#6f6c66]">
+        <div className="ws-between ws-fs-body ws-ink-soft">
           <span>
             On disallowed source:{" "}
-            <strong className="text-[#171717]">
+            <strong className="ws-ink">
               {tool.on_disallowed_source
                 ? requirementLabels[tool.on_disallowed_source] ??
                   titleCase(tool.on_disallowed_source)

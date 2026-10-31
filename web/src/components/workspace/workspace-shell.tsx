@@ -7,7 +7,10 @@ import {
   Command,
   ExternalLink,
   HeartPulse,
+  KeyRound,
+  LogOut,
   Menu,
+  PanelLeft,
   ScrollText,
   Search,
   Settings2,
@@ -42,7 +45,9 @@ import {
   TimeWindowControl,
   TimeWindowProvider,
 } from "@/components/workspace/time-window";
-import { Dot, GatewayStatus, StatusBadge } from "./ui";
+import { Dot, GatewayStatus, SkeletonPill, StatusBadge } from "./ui";
+import { SessionProvider, useSession } from "./session-context";
+import { RoleSwitcher } from "./role-switcher";
 
 function itemIsActive(
   item: WorkspaceNavItem,
@@ -61,12 +66,32 @@ function itemIsActive(
 }
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
+  return (
+    <TimeWindowProvider>
+      <SessionProvider>
+        <WorkspaceShellInner>{children}</WorkspaceShellInner>
+      </SessionProvider>
+    </TimeWindowProvider>
+  );
+}
+
+function WorkspaceShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const {
+    role,
+    mode,
+    notice,
+    clearNotice,
+    setSignInOpen,
+    setSignOutOpen,
+  } = useSession();
   const [open, setOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [hash, setHash] = useState("");
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
 
   const health = useLiveData<HealthResponse>("/health", { intervalMs: 20_000 });
   const enforce = useLiveData<EnforceResponse>("/v1/enforce", { intervalMs: 20_000 });
@@ -113,8 +138,27 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     if (!open) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const aside = asideRef.current;
+    aside?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !aside) return;
+      const items = Array.from(
+        aside.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"),
+      ).filter((element) => element.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
@@ -142,16 +186,21 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   }, [userMenuOpen]);
 
   return (
-    <TimeWindowProvider>
-      <div className="workspace">
-        <a href="#workspace-main" className="ws-skip">
-          Skip to workspace content
-        </a>
+    <div className="workspace">
+      <a href="#workspace-main" className="ws-skip">
+        Skip to workspace content
+      </a>
 
         <div className="ws-shell">
           <aside
             id="workspace-navigation"
-            className={cn("ws-sidebar", open && "is-open")}
+            ref={asideRef}
+            tabIndex={-1}
+            className={cn(
+              "ws-sidebar",
+              open && "is-open",
+              collapsed && "is-collapsed",
+            )}
             aria-label="Workspace navigation"
           >
             <div className="ws-sidebar-inner">
@@ -208,14 +257,15 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               </nav>
 
               <div className="ws-sidebar-footer">
+                <RoleSwitcher collapsed={collapsed} />
                 <div className="ws-env">
                   <Dot
                     tone={health.failure ? "error" : health.data ? "ok" : "warn"}
                   />
                   <div className="ws-env-copy">
                     <strong>
-                      {health.failure
-                        ? "Gateway offline"
+                      {health.failure && !health.data
+                        ? "Gateway unreachable"
                         : health.data
                           ? "Gateway connected"
                           : "Checking gateway"}
@@ -225,26 +275,29 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                         ? `${health.data.detectors.length} detector${health.data.detectors.length === 1 ? "" : "s"} · ${health.data.auth_required ? "auth required" : "open dev gateway"}`
                         : (health.failure?.message ?? "Reading /health")}
                     </span>
+                    {health.failure && !health.data ? (
+                      <button
+                        type="button"
+                        className="ws-link ws-fs-meta"
+                        onClick={() => void health.refresh()}
+                      >
+                        Retry
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="ws-sidebar-enforce">
                   <span>Enforcement</span>
-                  <StatusBadge
-                    tone={
-                      enforce.data
-                        ? enforce.data.enforced
-                          ? "ok"
-                          : "warn"
-                        : "neutral"
-                    }
-                  >
-                    {enforce.data
-                      ? enforce.data.enforced
-                        ? "ON"
-                        : "OFF"
-                      : "UNKNOWN"}
-                  </StatusBadge>
+                  {enforce.data ? (
+                    <StatusBadge tone={enforce.data.enforced ? "ok" : "warn"}>
+                      {enforce.data.enforced ? "ON" : "OFF"}
+                    </StatusBadge>
+                  ) : enforce.failure ? (
+                    <StatusBadge tone="neutral">unknown</StatusBadge>
+                  ) : (
+                    <SkeletonPill label="Loading enforcement state" />
+                  )}
                 </div>
 
                 <div className="ws-sidebar-links">
@@ -269,8 +322,29 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           ) : null}
 
           <div className="ws-main">
+            {notice ? (
+              <div className="ws-notice" role="status">
+                <span>{notice}</span>
+                <button
+                  type="button"
+                  className="ws-link ws-fs-meta"
+                  onClick={clearNotice}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
             <header className="ws-topbar">
               <div className="ws-topbar-inner">
+                <button
+                  type="button"
+                  className="ws-icon-btn ws-collapse-button"
+                  onClick={() => setCollapsed((value) => !value)}
+                  aria-expanded={!collapsed}
+                  aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  <PanelLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
                 <button
                   type="button"
                   className="ws-icon-btn ws-menu-button"
@@ -317,7 +391,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                     </StatusBadge>
                   ) : enforce.failure ? (
                     <StatusBadge tone="neutral">Enforcement unknown</StatusBadge>
-                  ) : null}
+                  ) : (
+                    <SkeletonPill label="Loading enforcement state" />
+                  )}
 
                   <GatewayStatus
                     state={
@@ -333,12 +409,24 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                       aria-expanded={userMenuOpen}
                       onClick={() => setUserMenuOpen((value) => !value)}
                     >
-                      <span className="ws-user-avatar" aria-hidden="true">
-                        OP
+                      <span
+                        className={cn(
+                          "ws-user-avatar",
+                          role === "admin" && "is-admin",
+                        )}
+                        aria-hidden="true"
+                      >
+                        {role === "admin" ? "AD" : "OP"}
                       </span>
                       <span className="ws-user-copy">
-                        <strong>Operator</strong>
-                        <span>Local session</span>
+                        <strong>
+                          {role === "admin" ? "Administrator" : "Operator"}
+                        </strong>
+                        <span>
+                          {role === "admin"
+                            ? "Admin session"
+                            : "Read-only · server-held key"}
+                        </span>
                       </span>
                       <ChevronDown
                         className={cn(
@@ -352,14 +440,58 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                     {userMenuOpen ? (
                       <div className="ws-user-menu" role="menu">
                         <div className="ws-user-menu-head">
-                          <span className="ws-user-avatar is-large" aria-hidden="true">
-                            OP
+                          <span
+                            className={cn(
+                              "ws-user-avatar is-large",
+                              role === "admin" && "is-admin",
+                            )}
+                            aria-hidden="true"
+                          >
+                            {role === "admin" ? "AD" : "OP"}
                           </span>
                           <span>
-                            <strong>Operator</strong>
-                            <span>No workspace sign-in · server-held gateway keys</span>
+                            <strong>
+                              {role === "admin" ? "Administrator" : "Operator"}
+                            </strong>
+                            <span>
+                              {role === "admin"
+                                ? "Admin session · privileged controls unlocked"
+                                : "No workspace sign-in · server-held gateway keys"}
+                            </span>
                           </span>
                         </div>
+                        <div className="ws-menu-sep" />
+                        {role === "admin" ? (
+                          <button
+                            type="button"
+                            className="ws-user-menu-item"
+                            role="menuitem"
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              setSignOutOpen(true);
+                            }}
+                          >
+                            <LogOut className="h-3.5 w-3.5" /> Sign out of admin
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="ws-user-menu-item"
+                            role="menuitem"
+                            disabled={mode === "unconfigured"}
+                            title={
+                              mode === "unconfigured"
+                                ? "Admin login is not configured on the server (ADMIN_PASSWORD unset)"
+                                : undefined
+                            }
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              setSignInOpen(true);
+                            }}
+                          >
+                            <KeyRound className="h-3.5 w-3.5" /> Sign in as admin
+                          </button>
+                        )}
                         <div className="ws-menu-sep" />
                         <Link
                           href="/workspace/settings#health"
@@ -420,7 +552,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         </div>
 
         <CommandPalette open={paletteOpen} onClose={closePalette} />
-      </div>
-    </TimeWindowProvider>
+    </div>
   );
 }

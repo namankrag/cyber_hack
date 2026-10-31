@@ -145,7 +145,7 @@ export function ThreatsClient({ initialEvent }: { initialEvent: string | null })
         <StatCard
           label="Detector findings"
           value={threats.data ? formatNumber(threats.data.total) : "—"}
-          meta={threats.data ? `from ${formatNumber(threats.data.sample.entries_read)} audit entries` : "Waiting for gateway"}
+          meta={threats.data ? `from ${formatNumber(threats.data.sample.entries_read)} audit entries` : threats.failure ? "Gateway unreachable \u2014 retry" : "Loading\u2026"}
           icon={ShieldAlert}
         />
         <StatCard
@@ -185,9 +185,8 @@ export function ThreatsClient({ initialEvent }: { initialEvent: string | null })
                   label: row.label,
                   value: row.count,
                   note: `${row.count}`,
-                  tone: row.key === "payment_fraud" || row.key === "data_exfiltration" ? "red" : "purple",
+                  tone: row.key === "payment_fraud" || row.key === "data_exfiltration" ? "deny" : undefined,
                 }))}
-                empty="No detector-flagged events in the retained sample."
               />
             ) : threats.failure ? (
               <ErrorState failure={threats.failure} onRetry={threats.refresh} compact />
@@ -389,19 +388,19 @@ export function ThreatsClient({ initialEvent }: { initialEvent: string | null })
                       }}
                       aria-label={`Inspect ${event.category_label} finding on ${event.tool}`}
                     >
-                      <td className="is-nowrap text-[10.5px] text-[#6f6c66]">
+                      <td className="is-nowrap ws-fs-body ws-ink-soft">
                         {formatTimestamp(event.timestamp ?? event.epoch)}
                       </td>
                       <td>
                         <SeverityBadge severity={event.severity} />
                       </td>
-                      <td className="text-[10.5px]">{event.category_label}</td>
-                      <td className="font-mono text-[10px]">{event.detector}</td>
-                      <td className="font-mono text-[10px]">{event.tool}</td>
+                      <td className="ws-fs-body">{event.category_label}</td>
+                      <td className="font-mono ws-fs-meta">{event.detector}</td>
+                      <td className="font-mono ws-fs-meta">{event.tool}</td>
                       <td>
                         <DecisionBadge decision={event.decision} short />
                       </td>
-                      <td className="is-nowrap font-mono text-[10px]">
+                      <td className="is-nowrap font-mono ws-fs-meta">
                         {event.score.toFixed(2)}
                       </td>
                     </tr>
@@ -487,7 +486,7 @@ function ThreatDetail({ event }: { event: ThreatEvent }) {
         <DecisionBadge decision={event.decision} />
       </div>
       <div>
-        <div className="text-[15px] font-semibold tracking-[-0.03em]">
+        <div className="ws-fs-hsm font-semibold">
           {event.category_label}
         </div>
         <p className="ws-hint mt-1">

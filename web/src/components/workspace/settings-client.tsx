@@ -25,7 +25,7 @@ import {
   formatNumber,
   formatTimestamp,
 } from "@/lib/api/format";
-import { adminLogin, adminLogout, type AdminSessionState } from "@/lib/api/client";
+import { useSession } from "./session-context";
 import { toApiFailure, type ApiFailure } from "@/lib/api/errors";
 import type {
   AuditResponse,
@@ -179,6 +179,14 @@ export function SettingsClient() {
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [sessionFailure, setSessionFailure] = useState<ApiFailure | null>(null);
+  const {
+    adminSession,
+    adminSessionError,
+    signIn: contextSignIn,
+    signOut: contextSignOut,
+    refresh: refreshContextSession,
+    sessionLoading,
+  } = useSession();
   const health = useLiveData<HealthResponse>("/health", { intervalMs: 20_000 });
   const ready = useLiveData<ReadyResponse>("/ready", { intervalMs: 20_000 });
   const enforce = useLiveData<EnforceResponse>("/v1/enforce", { intervalMs: 20_000 });
@@ -192,10 +200,6 @@ export function SettingsClient() {
   const adminProbe = useLiveData<RedteamScenariosResponse>("/v1/redteam/scenarios", {
     intervalMs: 30_000,
   });
-  const session = useLiveData<AdminSessionState>("/admin/session", {
-    intervalMs: 30_000,
-  });
-
   const signIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSessionFailure(null);
@@ -209,9 +213,9 @@ export function SettingsClient() {
     }
     setSigningIn(true);
     try {
-      await adminLogin(password);
+      await contextSignIn(password);
       setPassword("");
-      await Promise.all([session.refresh(), adminProbe.refresh()]);
+      await adminProbe.refresh();
     } catch (error) {
       setSessionFailure(toApiFailure(error));
     } finally {
@@ -222,8 +226,8 @@ export function SettingsClient() {
   const signOut = async () => {
     setSessionFailure(null);
     try {
-      await adminLogout();
-      await Promise.all([session.refresh(), adminProbe.refresh()]);
+      await contextSignOut();
+      await adminProbe.refresh();
     } catch (error) {
       setSessionFailure(toApiFailure(error));
     }
@@ -237,7 +241,7 @@ export function SettingsClient() {
     evidence.isRefreshing ||
     readProbe.isRefreshing ||
     adminProbe.isRefreshing ||
-    session.isRefreshing;
+    sessionLoading;
 
   const refreshAll = () => {
     void Promise.all([
@@ -248,7 +252,7 @@ export function SettingsClient() {
       evidence.refresh(),
       readProbe.refresh(),
       adminProbe.refresh(),
-      session.refresh(),
+      refreshContextSession(),
     ]);
   };
 
@@ -308,6 +312,7 @@ export function SettingsClient() {
 
       <div className="ws-grid ws-grid-4">
         <StatCard
+          loading={!health.data && !health.failure}
           label="Gateway"
           value={
             health.data ? (
@@ -319,10 +324,11 @@ export function SettingsClient() {
               "—"
             )
           }
-          meta={health.data ? "GET /health · GET /ready" : "Waiting for gateway"}
+          meta={health.data ? "GET /health · GET /ready" : health.failure ? "Gateway unreachable — retry" : "Loading…"}
           icon={ServerCog}
         />
         <StatCard
+          loading={!readProbe.data && !readProbe.failure}
           label="API access"
           value={readStatus}
           meta={
@@ -336,6 +342,7 @@ export function SettingsClient() {
           tone={readStatus === "authorized" ? "lime" : undefined}
         />
         <StatCard
+          loading={!adminProbe.data && !adminProbe.failure}
           label="Admin access"
           value={adminStatus}
           meta="Probed with GET /v1/redteam/scenarios"
@@ -343,6 +350,7 @@ export function SettingsClient() {
           tone={adminStatus === "authorized" ? "purple" : undefined}
         />
         <StatCard
+          loading={!enforce.data && !enforce.failure}
           label="Enforcement"
           value={enforce.data ? (enforce.data.enforced ? "ON" : "OFF") : "—"}
           meta="Global switch · admin-key gated"
@@ -357,19 +365,19 @@ export function SettingsClient() {
         subtitle="Password login backed by an httpOnly signed cookie"
         icon={LockKeyhole}
         actions={
-          <StatusBadge tone={session.data?.authenticated ? "ok" : "neutral"}>
-            {session.data?.authenticated ? "signed in" : "signed out"}
+          <StatusBadge tone={adminSession?.authenticated ? "ok" : "neutral"}>
+            {adminSession?.authenticated ? "signed in" : "signed out"}
           </StatusBadge>
         }
       />
       <CardBody>
         <div className="ws-stack">
-          {session.data?.authenticated ? (
+          {adminSession?.authenticated ? (
             <div className="ws-between">
               <span className="ws-hint">
                 Signed in
-                {session.data.expires_at
-                  ? ` · session expires ${formatTimestamp(session.data.expires_at * 1000)}`
+                {adminSession.expires_at
+                  ? ` · session expires ${formatTimestamp(adminSession.expires_at * 1000)}`
                   : ""}
                 . Privileged proxy routes attach the admin key server-side.
               </span>
@@ -417,8 +425,8 @@ export function SettingsClient() {
               {sessionFailure.message}
             </Banner>
           ) : null}
-          {session.failure ? (
-            <span className="ws-hint">Session check failed: {session.failure.message}</span>
+          {adminSessionError ? (
+            <span className="ws-hint">Session check failed: {adminSessionError.message}</span>
           ) : null}
         </div>
       </CardBody>
@@ -701,7 +709,7 @@ export function SettingsClient() {
           <div className="ws-grid ws-grid-3">
             <Link
               href="/workspace"
-              className="ws-tool-card transition-colors hover:border-[#bdb9b1]"
+              className="ws-tool-card"
             >
               <div className="ws-tool-head">
                 <span className="ws-tool-name">Enforcement switch</span>
@@ -717,7 +725,7 @@ export function SettingsClient() {
             </Link>
             <Link
               href="/workspace/corpus"
-              className="ws-tool-card transition-colors hover:border-[#bdb9b1]"
+              className="ws-tool-card"
             >
               <div className="ws-tool-head">
                 <span className="ws-tool-name">Corpus re-ingest</span>
@@ -731,7 +739,7 @@ export function SettingsClient() {
             </Link>
             <Link
               href="/workspace/policy"
-              className="ws-tool-card transition-colors hover:border-[#bdb9b1]"
+              className="ws-tool-card"
             >
               <div className="ws-tool-head">
                 <span className="ws-tool-name">Policy changes</span>
@@ -767,10 +775,10 @@ export function SettingsClient() {
               <tbody>
                 {endpoints.map((endpoint) => (
                   <tr key={`${endpoint.method}-${endpoint.path}`}>
-                    <td className="font-mono text-[10px] font-semibold">
+                    <td className="font-mono ws-fs-meta font-semibold">
                       {endpoint.method}
                     </td>
-                    <td className="font-mono text-[10px]">{endpoint.path}</td>
+                    <td className="font-mono ws-fs-meta">{endpoint.path}</td>
                     <td>
                       <StatusBadge
                         tone={
@@ -784,7 +792,7 @@ export function SettingsClient() {
                         {endpoint.auth}
                       </StatusBadge>
                     </td>
-                    <td className="text-[10.5px] text-[#4d4a45]">{endpoint.purpose}</td>
+                    <td className="ws-fs-body ws-ink-soft">{endpoint.purpose}</td>
                   </tr>
                 ))}
               </tbody>

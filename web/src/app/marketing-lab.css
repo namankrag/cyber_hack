@@ -92,14 +92,14 @@
 }
 
 .scenario-text strong {
-  font-size: 12px;
+  font-size: var(--as-fs-body);
   font-weight: 600;
   letter-spacing: -0.015em;
 }
 
 .scenario-text span {
   color: #8b857d;
-  font-size: 9.5px;
+  font-size: var(--as-fs-label);
   line-height: 1.4;
 }
 
@@ -109,7 +109,7 @@
   border-radius: 999px;
   color: #89837b;
   font-family: var(--font-mono);
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -136,7 +136,7 @@
 .scenario-button.is-active .decision-require_approval,
 .scenario-button.is-active .decision-deny,
 .scenario-button.is-active .decision-allow {
-  font-size: 6px;
+  font-size: var(--as-fs-label);
 }
 
 .lab-footnote {
@@ -144,9 +144,9 @@
   align-items: flex-start;
   gap: 6px;
   margin-top: 22px;
-  color: #928c83;
+  color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.02em;
   line-height: 1.6;
 }
@@ -207,12 +207,12 @@
 }
 
 .lab-toolbar .mono-label {
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   color: #99938a;
 }
 
 .lab-toolbar p {
-  font-size: 9px;
+  font-size: var(--as-fs-label);
 }
 
 .lab-toolbar-divider {
@@ -235,7 +235,7 @@
   background: #f0f9f2;
   color: #347e52;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -274,7 +274,7 @@
 }
 
 .lab-event-card .mono-label {
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   color: #99938a;
 }
 
@@ -283,7 +283,7 @@
   border: 1px solid #ded9d2;
   border-radius: 999px;
   font-family: var(--font-mono);
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -330,7 +330,7 @@
   width: 16px;
   color: #a29c94;
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
 }
 
 .pipeline-icon {
@@ -354,7 +354,7 @@
 }
 
 .lab-pipeline-step strong {
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -362,7 +362,7 @@
 .lab-pipeline-step > span:nth-child(3) > span {
   color: #99938b;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   line-height: 1.4;
 }
 
@@ -413,20 +413,20 @@
 
 .verdict-label {
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 500;
   letter-spacing: 0.12em;
 }
 
 .verdict-main strong {
-  font-size: 31px;
+  font-size: var(--as-fs-h-xl);
   font-weight: 600;
   letter-spacing: -0.06em;
   line-height: 1.1;
 }
 
 .verdict-detail {
-  font-size: 9px;
+  font-size: var(--as-fs-label);
   opacity: 0.62;
 }
 
@@ -479,7 +479,7 @@
 }
 
 .reason-box .mono-label {
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   color: #99938a;
 }
 
@@ -495,7 +495,7 @@
   align-items: flex-start;
   gap: 7px;
   color: #716b63;
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   line-height: 1.45;
   transition: opacity 180ms ease;
 }
@@ -515,7 +515,7 @@
   border-radius: 50%;
   color: #a19a92;
   font-family: var(--font-mono);
-  font-size: 6px;
+  font-size: var(--as-fs-label);
 }
 
 .lab-shell-bottom {
@@ -538,7 +538,7 @@
   border-radius: 999px;
   background: var(--cream);
   box-shadow: 2px 2px 0 var(--ink);
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
@@ -570,18 +570,18 @@
 }
 
 .lab-float-card .mono-label {
-  font-size: 6px;
+  font-size: var(--as-fs-label);
   color: #637318;
 }
 
 .lab-float-card strong {
-  font-size: 15px;
+  font-size: var(--as-fs-body-lg);
   font-weight: 650;
   letter-spacing: -0.04em;
 }
 
 .lab-float-card span:last-child {
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
   color: #5e6c1e;
 }
 
@@ -599,7 +599,7 @@
   background: var(--purple);
   box-shadow: 2px 2px 0 var(--ink);
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.03em;
   transform: rotate(-3deg);
@@ -630,7 +630,7 @@
 .security-header-copy > p {
   max-width: 26rem;
   color: #6e6962;
-  font-size: 14.5px;
+  font-size: var(--as-fs-body-lg);
   line-height: 1.7;
 }
 
@@ -651,7 +651,7 @@
   background: #ffffff;
   color: #716a62;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.02em;
 }
 
@@ -686,12 +686,12 @@
 
 .architecture-head .mono-label {
   color: rgba(248, 247, 244, 0.36);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
 }
 
 .architecture-head strong {
   color: rgba(248, 247, 244, 0.8);
-  font-size: 12.5px;
+  font-size: var(--as-fs-body);
   font-weight: 550;
   letter-spacing: -0.02em;
 }
@@ -705,7 +705,7 @@
   border-radius: 999px;
   color: var(--lime);
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -749,7 +749,7 @@
 .arch-node-label {
   color: var(--purple);
   font-family: var(--font-mono);
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
   letter-spacing: 0.11em;
 }
@@ -757,7 +757,7 @@
 .arch-node strong {
   margin-top: 2px;
   color: var(--cream);
-  font-size: 13px;
+  font-size: var(--as-fs-body);
   font-weight: 550;
   letter-spacing: -0.025em;
 }
@@ -765,7 +765,7 @@
 .arch-node small {
   margin-top: 2px;
   color: rgba(248, 247, 244, 0.34);
-  font-size: 7.5px;
+  font-size: var(--as-fs-label);
 }
 
 .arch-connector {
@@ -796,7 +796,7 @@
   background: var(--navy);
   color: rgba(248, 247, 244, 0.32);
   font-family: var(--font-mono);
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.04em;
   white-space: nowrap;
   transform: translateX(-50%);
@@ -843,7 +843,7 @@
 }
 
 .arch-shield-head strong {
-  font-size: 12px;
+  font-size: var(--as-fs-body);
   font-weight: 650;
   letter-spacing: -0.02em;
 }
@@ -851,7 +851,7 @@
 .arch-shield-head small {
   color: #969087;
   font-family: var(--font-mono);
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.1em;
 }
 
@@ -866,7 +866,7 @@
   background: #f1f9f2;
   color: #347e52;
   font-family: var(--font-mono);
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
 }
 
@@ -897,7 +897,7 @@
   background: #ffffff;
   color: #655f57;
   font-family: var(--font-mono);
-  font-size: 6px;
+  font-size: var(--as-fs-label);
 }
 
 .arch-modules svg {
@@ -915,7 +915,7 @@
 .arch-decision .mono-label {
   margin-right: auto;
   color: #a19a91;
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
 }
 
 .arch-decision-pill {
@@ -924,7 +924,7 @@
   border-radius: 4px;
   background: var(--lime);
   font-family: var(--font-mono);
-  font-size: 5.5px;
+  font-size: var(--as-fs-label);
   font-weight: 600;
 }
 
@@ -946,7 +946,7 @@
   border-top: 1px solid rgba(248, 247, 244, 0.13);
   color: rgba(248, 247, 244, 0.42);
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--as-fs-label);
 }
 
 .architecture-foot span {
@@ -994,7 +994,7 @@
 
 .principle-card h3 {
   margin-top: 16px;
-  font-size: 14px;
+  font-size: var(--as-fs-body-lg);
   font-weight: 650;
   letter-spacing: -0.035em;
 }
@@ -1002,7 +1002,7 @@
 .principle-card p {
   margin-top: 6px;
   color: #827b72;
-  font-size: 10.5px;
+  font-size: var(--as-fs-meta);
   line-height: 1.6;
 }
 
@@ -1050,7 +1050,7 @@
   border: 1px solid var(--ink);
   border-radius: 9px;
   background: var(--lime);
-  font-size: 8px;
+  font-size: var(--as-fs-label);
   font-weight: 650;
 }
 
@@ -1061,13 +1061,13 @@
 }
 
 .proof-attribution strong {
-  font-size: 10.5px;
+  font-size: var(--as-fs-meta);
   font-weight: 600;
 }
 
 .proof-attribution small {
   color: #908a81;
-  font-size: 8.5px;
+  font-size: var(--as-fs-label);
 }
 
 .proof-stats {
@@ -1092,7 +1092,7 @@
 }
 
 .proof-stats strong {
-  font-size: 24px;
+  font-size: var(--as-fs-h-lg);
   font-weight: 600;
   letter-spacing: -0.055em;
   line-height: 1;
@@ -1101,6 +1101,6 @@
 .proof-stats span {
   color: #4d3b61;
   font-family: var(--font-mono);
-  font-size: 6.5px;
+  font-size: var(--as-fs-label);
   letter-spacing: 0.03em;
 }
