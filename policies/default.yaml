@@ -24,6 +24,14 @@ defaults:
   fail_closed_on_detector_error: true
   detector_error_decision: require_approval
 
+  # ---- deterministic data-flow controls (not keyword/LLM based) ----
+  # Approved outbound destinations. An egress tool sending anywhere else is
+  # escalated; sending there under untrusted influence is blocked (exfiltration).
+  destination_allowlist: [ourcompany.com, ourco.com]
+  on_untrusted_destination: require_approval
+  on_exfiltration_pattern: deny
+  on_unneeded_secret_access: require_approval
+
 tools:
   # ---- low-sensitivity: read-only, safe to run broadly ----
   search_web:
@@ -39,12 +47,19 @@ tools:
     sensitivity: high
     allow: true
     require_approval: true          # a human always confirms outbound mail
+    is_egress: true                 # sends data outward -> destination-checked
+    destination_args: [to]          # the recipient lives in the `to` argument
 
   read_customer_db:
     sensitivity: high
     allow: true
     allow_sources: [user, system]   # only a direct user/app request may query it
     on_disallowed_source: deny      # an agent nudged by a document cannot
+
+  read_secret:
+    sensitivity: high
+    allow: true
+    reads_secrets: true             # guarded when under untrusted influence
 
   transfer_funds:
     sensitivity: high
