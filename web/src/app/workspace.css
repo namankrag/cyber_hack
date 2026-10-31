@@ -5888,3 +5888,101 @@ a.ws-list-row:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Policy editor */
+
+.ws-policy-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--as-sp-2);
+  margin-bottom: var(--as-sp-2);
+}
+
+.ws-policy-editor {
+  width: 100%;
+  min-height: 320px;
+  padding: var(--as-sp-3);
+  border: 1px solid var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-navy);
+  color: var(--ws-cream);
+  font-family: var(--font-mono);
+  font-size: var(--as-fs-meta);
+  line-height: 1.55;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.ws-policy-impact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--as-sp-3);
+  margin-top: var(--as-sp-4);
+}
+
+.ws-policy-impact-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--as-sp-3) var(--as-sp-4);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-success-soft);
+  color: var(--ws-success-ink);
+}
+
+.ws-policy-impact-head.is-worse {
+  background: var(--ws-danger-soft);
+  color: var(--ws-danger-ink);
+}
+
+.ws-policy-impact-head strong {
+  font-size: var(--as-fs-body-lg);
+}
+
+.ws-policy-impact-head span {
+  font-size: var(--as-fs-meta);
+  opacity: 0.85;
+}
+
+.ws-policy-metrics td:nth-child(n + 2),
+.ws-policy-metrics th:nth-child(n + 2) {
+  text-align: right;
+}
+
+.ws-policy-bad {
+  color: var(--ws-danger-ink);
+  font-weight: 600;
+}
+
+.ws-policy-good {
+  color: var(--ws-success-ink);
+  font-weight: 600;
+}
+
+.ws-policy-changed {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.ws-policy-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--as-sp-2);
+}
+
+.ws-policy-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--as-sp-2) var(--as-sp-3);
+  padding: var(--as-sp-2) var(--as-sp-3);
+  border: 1px solid var(--ws-line-soft);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-white);
+  font-size: var(--as-fs-meta);
+}
+
+.ws-policy-history li .ws-btn {
+  margin-left: auto;
+}

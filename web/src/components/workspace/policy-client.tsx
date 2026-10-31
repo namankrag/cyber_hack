@@ -24,6 +24,7 @@ import type { PolicyResponse } from "@/lib/api/types";
 import { useLiveData } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "@/components/workspace/json-block";
+import { PolicyEditor } from "@/components/workspace/policy-editor";
 import {
   Banner,
   Card,
@@ -86,11 +87,11 @@ export function PolicyClient() {
             The rules, <em>exactly as loaded.</em>
           </>
         }
-        description="A read-only view of the active YAML policy, its defaults, per-tool permissions, evaluation order and SHA-256 digest. This build has no authenticated publish endpoint, so there is deliberately no edit control."
+        description="The active YAML policy, its defaults, per-tool permissions, evaluation order and SHA-256 digest. Changes go through a safe flow: edit a draft, check its impact on the benchmark, then an admin publishes it (versioned, hot-reloaded, reversible)."
         actions={
           <>
             <StatusBadge tone="purple">
-              <LockKeyhole className="h-3 w-3" /> read-only
+              <LockKeyhole className="h-3 w-3" /> {data?.digest_pinned ? "pinned · read-only" : "admin-published"}
             </StatusBadge>
             <button
               type="button"
@@ -107,6 +108,8 @@ export function PolicyClient() {
         }
       />
 
+      {data ? <PolicyEditor policy={data} onPublished={() => void policy.refresh()} /> : null}
+
       {policy.failure && policy.data ? (
         <Banner tone="warn" icon={AlertTriangle}>
           <strong>Live updates interrupted.</strong> Showing the last successful policy
@@ -115,9 +118,9 @@ export function PolicyClient() {
       ) : null}
 
       <Banner tone="purple" icon={LockKeyhole}>
-        <strong>Read-only by design.</strong>{" "}
+        <strong>{data?.digest_pinned ? "Pinned: read-only." : "How changes work."}</strong>{" "}
         {data?.notes.write ??
-          "Policy editing is disabled: no authenticated publish endpoint exists. Change the policy file on the gateway host through your reviewed deployment process."}
+          "Admins publish reviewed drafts; every change is versioned and reversible."}
       </Banner>
 
       <div className="ws-grid ws-grid-4">

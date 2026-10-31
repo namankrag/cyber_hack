@@ -781,3 +781,56 @@ export interface TrustDemoResponse {
   arguments: Record<string, unknown>;
   checks: TrustDemoCheck[];
 }
+
+/* ---- Policy editing (preview / publish / rollback / history) ------------ */
+
+export interface PolicyImpactMetrics {
+  attack_success: number | null;
+  attack_held: number | null;
+  attack_denied: number | null;
+  benign_denied: number | null;
+  benign_held: number | null;
+  approval_correctness: number | null;
+  expected_match: number | null;
+}
+
+export interface PolicyPreviewResponse {
+  valid: boolean;
+  active_sha256: string;
+  draft_sha256: string;
+  identical: boolean;
+  diff: string;
+  tools: string[];
+  cases: number;
+  metrics: { active: PolicyImpactMetrics; draft: PolicyImpactMetrics };
+  changed: Array<{
+    id: string;
+    label: string;
+    attack_type: string | null;
+    tool: string;
+    source: string;
+    expected: DecisionValue;
+    before: DecisionValue;
+    after: DecisionValue;
+  }>;
+  pinned: boolean;
+}
+
+export interface PolicyChange {
+  at: number;
+  action: "publish" | "rollback";
+  actor: string;
+  from_sha256: string;
+  to_sha256: string;
+  previous_version: string;
+  tools: string[];
+  impact: { active: PolicyImpactMetrics; draft: PolicyImpactMetrics };
+  note: string;
+}
+
+export interface PolicyHistoryResponse {
+  active_sha256: string;
+  pinned: boolean;
+  changes: PolicyChange[];
+  versions: string[];
+}

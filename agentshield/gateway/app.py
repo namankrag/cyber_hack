@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field
 
 from . import MAX_BODY_BYTES
 from . import evidence as evidence_module
-from . import doclab, insights, mcp_demo, redteam, trust_demo
+from . import doclab, insights, mcp_demo, policy_admin, redteam, trust_demo
 from .dashboard import PAGE as _DASHBOARD_PAGE
 from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
@@ -430,6 +430,44 @@ def threats(limit: int = Query(default=500, ge=1, le=500)) -> dict:
 @app.get("/v1/policy", dependencies=[Depends(require_api_key)])
 def policy() -> dict:
     return insights.policy_view(shield)
+
+
+@app.post("/v1/policy/preview", dependencies=[Depends(require_api_key)])
+def policy_preview(body: dict) -> dict:
+    """Validate a draft policy and diff its benchmark verdicts against the active one.
+
+    Side-effect free: throwaway engines, nothing written to the audit trail.
+    """
+    try:
+        return policy_admin.preview(shield, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/v1/policy/history", dependencies=[Depends(require_api_key)])
+def policy_history() -> dict:
+    return policy_admin.history(shield)
+
+
+@app.post("/v1/admin/policy/publish", dependencies=[Depends(require_api_admin)])
+def policy_publish(body: dict) -> dict:
+    """Publish a reviewed draft: atomic write, version kept, gateway hot-reloads."""
+    try:
+        return policy_admin.publish(shield, body)
+    except policy_admin.PolicyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/v1/admin/policy/rollback", dependencies=[Depends(require_api_admin)])
+def policy_rollback(body: dict) -> dict:
+    try:
+        return policy_admin.rollback(shield, body)
+    except policy_admin.PolicyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/v1/tools", dependencies=[Depends(require_api_key)])

@@ -58,6 +58,20 @@ class AgentShield:
             enforce = os.getenv("AGENTSHIELD_ENFORCE", "1") != "0"
         self.enforce = enforce
 
+    def reload_policy(self, raw: bytes, source: str = "<policy>") -> None:
+        """Swap in new policy bytes using the same verify-then-parse path as startup.
+
+        The tool manifest is re-signed from the new policy and a fresh engine
+        is built; `check` reads `self.engine` once per call, so swapping it is
+        atomic for in-flight requests. Raises (and changes nothing) if the
+        bytes fail the digest pin or validation.
+        """
+        verify_policy_bytes(raw, source=source)
+        policy = load_policy_text(raw.decode("utf-8"), source=source)
+        manifest = ToolManifest.from_policy(policy)
+        engine = PolicyEngine(policy, self.detectors, manifest=manifest)
+        self.policy, self.tool_manifest, self.engine = policy, manifest, engine
+
     def ingest(self, raw: str, provenance: Provenance, *,
                content_type: str = "text", session=None) -> IngestedContent:
         """Inspect untrusted content before it enters the agent context.

@@ -465,8 +465,10 @@ def policy_view(shield: AgentShield) -> dict:
         "tools": tools,
         "tool_count": len(tools),
         "yaml": yaml_text,
-        "read_only": True,
-        "write_api": False,
+        # Editable through the admin-gated publish flow unless an operator
+        # pinned the digest (then the console must not change the rules).
+        "read_only": bool(expected),
+        "write_api": True,
         "evaluation_order": [
             {"step": 1, "rule": "unknown_tool", "label": "Unknown tool", "description": "A tool with no policy entry fails closed to the configured unknown-tool decision (require_approval by default)."},
             {"step": 2, "rule": "tool_disabled", "label": "Tool disabled", "description": "A tool declared with allow: false is denied outright."},
@@ -478,7 +480,8 @@ def policy_view(shield: AgentShield) -> dict:
             {"step": 8, "rule": "default_allow", "label": "Default allow", "description": "If no rule objected, the call is explicitly allowed and logged."},
         ],
         "notes": {
-            "write": "Policy editing is disabled in this build: no authenticated publish endpoint exists. The viewer is read-only.",
+            "write": ("Admins edit through validate -> preview impact on the benchmark -> publish (atomic write, "
+                      "previous version kept, gateway hot-reloads) -> rollback. Disabled while the digest is pinned."),
             "integrity": "Set AGENTSHIELD_POLICY_SHA256 to pin the reviewed digest; unset means the trust root is in dev mode.",
         },
     }
