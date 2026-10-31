@@ -86,7 +86,10 @@ export function hasBadSegment(segments: string[]): boolean {
   );
 }
 
-export function isPrivileged(joinedPath: string): boolean {
+export function isPrivileged(joinedPath: string, method = "GET"): boolean {
+  // Reading the approval queue is a regular API-key route on the gateway;
+  // only deciding an approval needs the admin session + key.
+  if (method.toUpperCase() !== "POST" && joinedPath === "v1/approvals") return false;
   return PRIVILEGED_PREFIXES.some(
     (prefix) => joinedPath === prefix || joinedPath.startsWith(`${prefix}/`),
   );
@@ -97,10 +100,26 @@ export function isPrivileged(joinedPath: string): boolean {
  * (curl, tests) send no Origin/Referer and are allowed through; a present
  * Origin or Referer must match this server's own origin.
  */
+/**
+ * The public origin of this site. Behind a hosting proxy request.url carries
+ * the internal address, so prefer PUBLIC_ORIGIN, then the forwarded host.
+ */
+function expectedOrigin(request: Request): string {
+  const configured = process.env.PUBLIC_ORIGIN;
+  if (configured) return configured.replace(/\/+$/, "");
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  if (host) {
+    const proto =
+      request.headers.get("x-forwarded-proto") || new URL(request.url).protocol.replace(":", "");
+    return `${proto.split(",")[0].trim()}://${host.split(",")[0].trim()}`;
+  }
+  return new URL(request.url).origin;
+}
+
 export function csrfFailure(request: Request): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
-  const expected = new URL(request.url).origin;
+  const expected = expectedOrigin(request);
   const origin = request.headers.get("origin");
   if (origin) {
     if (origin !== expected) {

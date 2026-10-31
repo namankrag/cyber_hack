@@ -40,11 +40,11 @@ async function forward(request: Request, path: string[]) {
 
   // Privileged gateway routes require a valid admin session (F1). The
   // ADMIN_KEY is attached server-side only; it is never sent to the browser.
-  if (isPrivileged(joined) && !verifySessionToken(getSessionToken(request))) {
+  if (isPrivileged(joined, request.method) && !verifySessionToken(getSessionToken(request))) {
     return NextResponse.json({ detail: ADMIN_REQUIRED_DETAIL }, { status: 401 });
   }
 
-  const privileged = isPrivileged(joined);
+  const privileged = isPrivileged(joined, request.method);
   const key = privileged ? ADMIN_KEY || API_KEY : API_KEY;
 
   // Declared-size pre-check so an oversized body is rejected before buffering.
