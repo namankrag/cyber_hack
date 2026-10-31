@@ -5647,3 +5647,244 @@ a.ws-list-row:hover {
     grid-template-columns: auto auto minmax(0, 1fr);
   }
 }
+
+/* Document Lab: verdict summary, document view, compact intake */
+
+.ws-doclab-intake.is-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ws-doclab-intake.is-compact .ws-doclab-drop {
+  min-height: 0;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--as-sp-3);
+  padding: var(--as-sp-3) var(--as-sp-4);
+  text-align: left;
+}
+
+.ws-doclab-intake.is-compact .ws-doclab-drop-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.ws-doclab-intake.is-compact .ws-doclab-drop > span:last-child,
+.ws-doclab-intake.is-compact .ws-doclab-samples > .ws-label:nth-of-type(2),
+.ws-doclab-intake.is-compact .ws-doclab-pdfs,
+.ws-doclab-intake.is-compact .ws-doclab-samples > .ws-hint {
+  display: none;
+}
+
+.ws-doclab-intake.is-compact .ws-doclab-sample-list {
+  margin-bottom: 0;
+}
+
+.ws-doclab-verdict {
+  overflow: hidden;
+  border-radius: var(--ws-radius);
+  background: var(--ws-navy);
+  color: var(--ws-cream);
+  box-shadow: var(--ws-shadow);
+}
+
+.ws-doclab-verdict.is-clean {
+  background: var(--ws-success-soft);
+  color: var(--ws-ink);
+  border: 1px solid var(--ws-success-border);
+}
+
+.ws-doclab-verdict-head {
+  display: flex;
+  align-items: center;
+  gap: var(--as-sp-3);
+  padding: var(--as-sp-4) var(--as-sp-5);
+}
+
+.ws-doclab-verdict-head strong {
+  display: block;
+  font-size: var(--as-fs-h-md);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ws-doclab-verdict-head span {
+  font-size: var(--as-fs-meta);
+  opacity: 0.75;
+}
+
+.ws-doclab-verdict-icon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-lime);
+  color: var(--ws-navy);
+}
+
+.ws-doclab-verdict.is-clean .ws-doclab-verdict-icon {
+  background: var(--ws-success);
+  color: var(--ws-white);
+}
+
+.ws-doclab-verdict-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(248, 247, 244, 0.12);
+}
+
+.ws-doclab-verdict.is-clean .ws-doclab-verdict-steps {
+  background: var(--ws-success-border);
+}
+
+.ws-doclab-verdict-steps li {
+  background: rgba(13, 16, 36, 0.35);
+}
+
+.ws-doclab-verdict.is-clean .ws-doclab-verdict-steps li {
+  background: var(--ws-white);
+}
+
+.ws-doclab-verdict-steps a {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--as-sp-2);
+  height: 100%;
+  padding: var(--as-sp-3) var(--as-sp-5);
+  color: inherit;
+  transition: background-color 140ms var(--ws-ease);
+}
+
+.ws-doclab-verdict-steps a:hover,
+.ws-doclab-verdict-steps a:focus-visible {
+  background: rgba(248, 247, 244, 0.06);
+}
+
+.ws-doclab-verdict-n {
+  grid-row: span 3;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(248, 247, 244, 0.14);
+  font-family: var(--font-mono);
+  font-size: var(--as-fs-label);
+  font-weight: 600;
+}
+
+.ws-doclab-verdict.is-clean .ws-doclab-verdict-n {
+  background: var(--ws-success-soft);
+}
+
+.ws-doclab-verdict-label {
+  font-family: var(--font-mono);
+  font-size: var(--as-fs-label);
+  letter-spacing: var(--as-track-label);
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ws-doclab-verdict-steps strong {
+  font-size: var(--as-fs-h-md);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ws-doclab-verdict-steps .is-threat strong,
+.ws-doclab-verdict-steps .is-stopped strong {
+  color: #ff9d94;
+}
+
+.ws-doclab-verdict-steps .is-fixed strong {
+  color: var(--ws-lime);
+}
+
+.ws-doclab-verdict.is-clean .ws-doclab-verdict-steps strong {
+  color: var(--ws-success-ink);
+}
+
+.ws-doclab-verdict-detail {
+  font-size: var(--as-fs-meta);
+  line-height: 1.45;
+  opacity: 0.78;
+}
+
+.ws-doclab-docview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--as-sp-4);
+}
+
+.ws-doclab-doctext,
+.ws-doclab-agenttext {
+  max-height: 300px;
+  margin-top: 6px;
+  overflow: auto;
+  padding: var(--as-sp-3);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-white);
+  color: var(--ws-ink);
+  font-family: var(--font-mono);
+  font-size: var(--as-fs-meta);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ws-doclab-agenttext {
+  border-color: var(--ws-success-border);
+  background: var(--ws-success-soft);
+}
+
+.ws-doclab-doctext mark,
+.ws-doclab-legend-mark {
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--ws-danger-soft);
+  box-shadow: inset 0 -2px 0 var(--ws-danger);
+  color: var(--ws-danger-ink);
+}
+
+.ws-doclab-hidden {
+  display: flex;
+  flex-direction: column;
+  gap: var(--as-sp-2);
+  margin-top: 6px;
+}
+
+.ws-doclab-hidden li {
+  padding: var(--as-sp-2) var(--as-sp-3);
+  border: 1px solid var(--ws-danger-border);
+  border-radius: var(--ws-radius-sm);
+  background: var(--ws-danger-soft);
+}
+
+.ws-doclab-hidden p {
+  margin-top: 6px;
+  color: var(--ws-danger-ink);
+  font-family: var(--font-mono);
+  font-size: var(--as-fs-meta);
+  line-height: 1.5;
+}
+
+.ws-doclab-none {
+  margin-top: 6px;
+  padding: var(--as-sp-3);
+  border: 1px dashed var(--ws-line-strong);
+  border-radius: var(--ws-radius-sm);
+  color: var(--ws-muted);
+  font-size: var(--as-fs-meta);
+}
+
+@media (max-width: 1080px) {
+  .ws-doclab-verdict-steps,
+  .ws-doclab-docview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

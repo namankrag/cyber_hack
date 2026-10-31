@@ -591,6 +591,17 @@ export interface DocumentAnalysis {
       flagged: DocumentFlaggedSentence[];
       flagged_total: number;
     };
+    /** Shared ingestion engine: hidden/obfuscated content found and stripped. */
+    ingestion?: {
+      content_type: string;
+      has_hidden_content: boolean;
+      risk_score: number;
+      signals: string[];
+      hidden_segments: Array<{ reason: string; text: string }>;
+      decoded_segments: Array<{ reason: string; text: string }>;
+      quoted_segments: string[];
+      agent_text_preview: string;
+    };
     agent_note: string;
     decisions: DocumentDecision[];
     summary: Record<DecisionValue, number>;

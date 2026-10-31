@@ -81,6 +81,8 @@ export function DocumentLabClient() {
   });
   const [phase, setPhase] = useState<Phase>("idle");
   const [slow, setSlow] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [lastDuration, setLastDuration] = useState<number | null>(null);
   const [label, setLabel] = useState<string | null>(null);
   const [result, setResult] = useState<DocumentAnalysis | null>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
@@ -102,6 +104,9 @@ export function DocumentLabClient() {
     setFailure(null);
     setLocalError(null);
     const slowTimer = window.setTimeout(() => setSlow(true), 1500);
+    const startedAt = Date.now();
+    setElapsed(0);
+    const tick = window.setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 250);
     try {
       const response = await apiPost<DocumentAnalysis>(
         "/v1/document/analyze",
@@ -118,6 +123,8 @@ export function DocumentLabClient() {
       setPhase("error");
     } finally {
       window.clearTimeout(slowTimer);
+      window.clearInterval(tick);
+      setLastDuration((Date.now() - startedAt) / 1000);
       if (inFlight.current === controller) inFlight.current = null;
     }
   }, []);
@@ -166,7 +173,7 @@ export function DocumentLabClient() {
           icon={Upload}
         />
         <CardBody>
-          <div className="ws-doclab-intake">
+          <div className={cn("ws-doclab-intake", result && !running && "is-compact")}>
             <label
               className={cn("ws-doclab-drop", dragOver && "is-over", running && "is-busy")}
               onDragOver={(event) => {
@@ -190,7 +197,13 @@ export function DocumentLabClient() {
               <span className="ws-doclab-drop-icon">
                 {running ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSearch className="h-5 w-5" />}
               </span>
-              <strong>{running ? `Analyzing ${label ?? "document"}…` : "Drop a file here or click to upload"}</strong>
+              <strong>
+                {running
+                  ? `Analyzing ${label ?? "document"}… ${elapsed}s`
+                  : result
+                    ? "Analyze another document: drop a file or click"
+                    : "Drop a file here or click to upload"}
+              </strong>
               <span>{ACCEPT.split(",").join(" ")}</span>
             </label>
 
@@ -265,12 +278,12 @@ export function DocumentLabClient() {
         </Card>
       ) : null}
 
-      {result && !running ? <Results result={result} /> : null}
+      {result && !running ? <Results result={result} seconds={lastDuration} /> : null}
     </div>
   );
 }
 
-function Results({ result }: { result: DocumentAnalysis }) {
+function Results({ result, seconds }: { result: DocumentAnalysis; seconds: number | null }) {
   const { document: doc, ps1, ps2 } = result;
   const blocked = ps1.decisions.filter((d) => d.would_block);
   return (
@@ -284,6 +297,11 @@ function Results({ result }: { result: DocumentAnalysis }) {
         <span className="ws-mono">sha256 {doc.sha256.slice(0, 12)}…</span>
       </div>
 
+      <VerdictHero result={result} seconds={seconds} />
+
+      <DocumentView result={result} />
+
+      <div id="doclab-runtime" className="ws-anchor" />
       <StageLabel layer="Runtime guard" title="AgentShield" detail="Decide every action before any tool runs" />
 
       <div className="ws-grid ws-doclab-ps1">
@@ -317,10 +335,6 @@ function Results({ result }: { result: DocumentAnalysis }) {
                 Showing {ps1.detection.flagged.length} of {ps1.detection.flagged_total} flagged sentences.
               </p>
             ) : null}
-            <details className="ws-doclab-excerpt">
-              <summary>Text the agent sees (first 1,500 characters)</summary>
-              <pre>{doc.excerpt}</pre>
-            </details>
           </CardBody>
         </Card>
 
@@ -363,6 +377,7 @@ function Results({ result }: { result: DocumentAnalysis }) {
         )}
       </div>
 
+      <div id="doclab-fix" className="ws-anchor" />
       <StageLabel layer="Root-cause fix" title="PatchProof" detail="Find → prove with an exploit → patch → verify" muted={!ps2.triggered} />
 
       {ps2.triggered ? (
@@ -408,6 +423,197 @@ function DocumentScan({ verdicts }: { verdicts: DetectorVerdict[] }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ summary */
+
+function VerdictHero({ result, seconds }: { result: DocumentAnalysis; seconds: number | null }) {
+  const { ps1, ps2 } = result;
+  const hidden = ps1.ingestion?.hidden_segments.length ?? 0;
+  const decoded = ps1.ingestion?.decoded_segments.length ?? 0;
+  const flagged = ps1.detection.flagged_total;
+  const threatFound = flagged > 0 || hidden + decoded > 0 || ps1.detection.document_scan.some((v) => v.threat);
+  const injected = ps1.decisions.filter((d) => d.origin === "document_instruction");
+  const stopped = ps1.decisions.filter((d) => d.would_block);
+  const denied = ps1.summary.deny ?? 0;
+  const held = ps1.summary.require_approval ?? 0;
+  const fixed = (ps2.targets ?? []).reduce((sum, t) => sum + t.fixed, 0);
+  const attack = threatFound || injected.length > 0;
+
+  const steps = [
+    {
+      label: "Hidden instruction",
+      value: attack ? `${injected.length || flagged} found` : "none",
+      detail: attack
+        ? [
+            hidden ? `${hidden} hidden segment${hidden === 1 ? "" : "s"}` : null,
+            flagged ? `${flagged} flagged sentence${flagged === 1 ? "" : "s"}` : null,
+            injected.length ? `${injected.length} action${injected.length === 1 ? "" : "s"} attempted` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "nothing in the document tried to steer the agent",
+      tone: attack ? "is-threat" : "is-clean",
+      href: "#doclab-document",
+    },
+    {
+      label: "Actions",
+      value: stopped.length ? `${stopped.length} stopped` : "allowed",
+      detail: stopped.length
+        ? `${denied} denied · ${held} held for a human · before any tool ran`
+        : "the agent read the document normally",
+      tone: stopped.length ? "is-stopped" : "is-clean",
+      href: "#doclab-runtime",
+    },
+    {
+      label: "Code",
+      value: ps2.triggered ? `${fixed} fixed` : "not needed",
+      detail: ps2.triggered
+        ? "the attacked tool's weaknesses were exploit-proven, patched and re-verified"
+        : "no governed tool was attacked, so no code scan ran",
+      tone: ps2.triggered ? "is-fixed" : "is-idle",
+      href: "#doclab-fix",
+    },
+  ];
+
+  return (
+    <section className={cn("ws-doclab-verdict", attack ? "is-attack" : "is-clean")} aria-live="polite">
+      <div className="ws-doclab-verdict-head">
+        <span className="ws-doclab-verdict-icon">
+          {attack ? <ShieldCheck className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+        </span>
+        <div>
+          <strong>
+            {attack
+              ? stopped.length
+                ? "Attack stopped before any tool ran."
+                : "Suspicious content found and contained."
+              : "No attack: the document was read normally."}
+          </strong>
+          <span>
+            {result.document.filename}
+            {seconds != null ? ` · analyzed in ${seconds.toFixed(1)}s` : ""}
+            {ps1.enforced ? "" : " · enforcement OFF: verdicts recorded, not enforced"}
+          </span>
+        </div>
+      </div>
+      <ol className="ws-doclab-verdict-steps">
+        {steps.map((step, index) => (
+          <li key={step.label} className={step.tone}>
+            <a href={step.href}>
+              <span className="ws-doclab-verdict-n">{index + 1}</span>
+              <span className="ws-doclab-verdict-label">{step.label}</span>
+              <strong>{step.value}</strong>
+              <span className="ws-doclab-verdict-detail">{step.detail}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** Mark each flagged phrase inside the text, tolerant of whitespace differences. */
+function highlight(text: string, phrases: string[]) {
+  const ranges: Array<[number, number]> = [];
+  for (const phrase of phrases.slice(0, 16)) {
+    const words = phrase.split(/\s+/).filter(Boolean).slice(0, 40);
+    if (words.length < 3) continue;
+    const pattern = new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+"));
+    const match = pattern.exec(text);
+    if (match) ranges.push([match.index, match.index + match[0].length]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const parts: Array<{ text: string; marked: boolean }> = [];
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    if (start < cursor) continue;
+    if (start > cursor) parts.push({ text: text.slice(cursor, start), marked: false });
+    parts.push({ text: text.slice(start, end), marked: true });
+    cursor = end;
+  }
+  if (cursor < text.length) parts.push({ text: text.slice(cursor), marked: false });
+  return parts;
+}
+
+function DocumentView({ result }: { result: DocumentAnalysis }) {
+  const { document: doc, ps1 } = result;
+  const ing = ps1.ingestion;
+  const phrases = ps1.detection.flagged.map((f) => f.text);
+  const parts = highlight(doc.excerpt, phrases);
+  const concealed = [...(ing?.hidden_segments ?? []), ...(ing?.decoded_segments ?? [])];
+  return (
+    <Card id="doclab-document" className="ws-anchor">
+      <CardHead
+        title="What's inside the document"
+        icon={FileSearch}
+        subtitle="What a person sees, what was hidden in it, and what the agent is actually given"
+      />
+      <CardBody>
+        <div className="ws-doclab-docview">
+          <div>
+            <p className="ws-label">The document {doc.kind === "pdf" ? "(text layer, including white text)" : ""}</p>
+            <pre className="ws-doclab-doctext">
+              {parts.map((part, index) =>
+                part.marked ? (
+                  <mark key={index} title="Flagged as an injected instruction">
+                    {part.text}
+                  </mark>
+                ) : (
+                  <span key={index}>{part.text}</span>
+                ),
+              )}
+              {doc.chars > doc.excerpt.length ? "\n…" : ""}
+            </pre>
+            {parts.some((part) => part.marked) ? (
+              <p className="ws-hint">
+                <mark className="ws-doclab-legend-mark">Highlighted</mark> sentences read as instructions to the agent.
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className="ws-label">Hidden or encoded content</p>
+            {concealed.length ? (
+              <ul className="ws-doclab-hidden">
+                {concealed.map((segment, index) => (
+                  <li key={index}>
+                    <span className="ws-badge is-deny">{segment.reason}</span>
+                    <p>{segment.text}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="ws-doclab-none">
+                {ing
+                  ? "No hidden markup, invisible characters or encoded payloads found."
+                  : "Ingestion inspection is not available on this gateway."}
+              </p>
+            )}
+            {doc.kind === "pdf" ? (
+              <p className="ws-hint">
+                PDF colour isn&apos;t preserved in text extraction: white-on-white text appears in the document
+                text on the left, where its sentences are flagged.
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className="ws-label">What the agent is given</p>
+            {ing ? (
+              <>
+                <pre className="ws-doclab-agenttext">{ing.agent_text_preview}</pre>
+                <p className="ws-hint">
+                  Hidden content is stripped and the rest is wrapped as untrusted data, so the model is told to
+                  treat it as information, not instructions.
+                </p>
+              </>
+            ) : (
+              <p className="ws-doclab-none">Not available on this gateway.</p>
+            )}
+          </div>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
