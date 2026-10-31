@@ -18,8 +18,11 @@ services:
       mountPath: /var/agentshield
       sizeGB: 1
     envVars:
+      # Auto-generate a strong, persistent harness secret so the trust /
+      # provenance demo ("can't fake trust", single-use + replay) works on
+      # deploy without manual steps. Override in the dashboard to rotate.
       - key: AGENTSHIELD_HARNESS_SECRET
-        sync: false
+        generateValue: true
       - key: AGENTSHIELD_API_KEY
         sync: false
       - key: AGENTSHIELD_ADMIN_KEY

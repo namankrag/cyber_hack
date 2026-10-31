@@ -35,6 +35,9 @@ services:
       AGENTSHIELD_RATE_LIMIT_PER_MIN: "600"
       AGENTSHIELD_AUDIT_BACKEND: jsonl
       AGENTSHIELD_APPROVAL_BACKEND: audit
+      # SHARED harness secret across replicas so a token minted on one gateway
+      # verifies on the other (demo default; override via env for real deploys).
+      AGENTSHIELD_HARNESS_SECRET: ${AGENTSHIELD_HARNESS_SECRET:-demo-shared-harness-secret-change-me}
       # Postgres audit + Redis approvals (needs optional drivers installed):
       # AGENTSHIELD_AUDIT_BACKEND: postgres
       # AGENTSHIELD_APPROVAL_BACKEND: redis
@@ -42,7 +45,6 @@ services:
       # AGENTSHIELD_REDIS_URL: redis://redis:6379/0
       # AGENTSHIELD_API_KEY: ${AGENTSHIELD_API_KEY:-}
       # AGENTSHIELD_ADMIN_KEY: ${AGENTSHIELD_ADMIN_KEY:-}
-      # AGENTSHIELD_HARNESS_SECRET: ${AGENTSHIELD_HARNESS_SECRET:-}
     depends_on:
       - redis
       - postgres
@@ -56,13 +58,15 @@ services:
       AGENTSHIELD_RATE_LIMIT_PER_MIN: "600"
       AGENTSHIELD_AUDIT_BACKEND: jsonl
       AGENTSHIELD_APPROVAL_BACKEND: audit
+      # SHARED harness secret (same value as gateway-a) so tokens verify on
+      # either replica.
+      AGENTSHIELD_HARNESS_SECRET: ${AGENTSHIELD_HARNESS_SECRET:-demo-shared-harness-secret-change-me}
       # AGENTSHIELD_AUDIT_BACKEND: postgres
       # AGENTSHIELD_APPROVAL_BACKEND: redis
       # AGENTSHIELD_POSTGRES_DSN: postgresql://agentshield:agentshield@postgres:5432/agentshield
       # AGENTSHIELD_REDIS_URL: redis://redis:6379/0
       # AGENTSHIELD_API_KEY: ${AGENTSHIELD_API_KEY:-}
       # AGENTSHIELD_ADMIN_KEY: ${AGENTSHIELD_ADMIN_KEY:-}
-      # AGENTSHIELD_HARNESS_SECRET: ${AGENTSHIELD_HARNESS_SECRET:-}
     depends_on:
       - redis
       - postgres

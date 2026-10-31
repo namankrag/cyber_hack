@@ -75,13 +75,26 @@ class RagStore:
     def __init__(self, path: str | None = None, collection: str = _COLLECTION) -> None:
         import chromadb
 
+        from .embedding import make_embedding_function
+
         self._collection_name = collection
+        # Default: a deterministic offline embedding (no model download, works
+        # air-gapped / in CI). AGENTSHIELD_RAG_EMBEDDING=onnx uses Chroma's
+        # model-based default instead. None -> Chroma default.
+        self._embedding_fn = make_embedding_function()
         if path:
             self._client = chromadb.PersistentClient(path=path,
                                                      settings=_TELEMETRY_OFF)
         else:
             self._client = chromadb.Client(_TELEMETRY_OFF)
-        self._collection = self._client.get_or_create_collection(self._collection_name)
+        self._collection = self._collection_for(self._collection_name)
+
+    def _collection_for(self, name: str):
+        """get_or_create_collection with the configured embedding function."""
+        if self._embedding_fn is not None:
+            return self._client.get_or_create_collection(
+                name, embedding_function=self._embedding_fn)
+        return self._client.get_or_create_collection(name)
 
     @property
     def count(self) -> int:
@@ -120,7 +133,7 @@ class RagStore:
             self._client.delete_collection(self._collection_name)
         except Exception:
             pass
-        self._collection = self._client.get_or_create_collection(self._collection_name)
+        self._collection = self._collection_for(self._collection_name)
         if ids:
             self._collection.add(ids=ids, documents=documents, metadatas=metadatas)
         return len(ids)
