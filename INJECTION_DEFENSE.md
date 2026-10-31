@@ -114,6 +114,34 @@ Demo: `python -m examples.injection_defense_demo`
 | Enforce in code before the tool runs | PEP / middleware; not a system prompt |
 | Clear reasons + audit without secrets | `PolicyReason`, redacted `AuditLog` |
 
+## MCP extension (fully working)
+
+MCP tool responses are untrusted content that re-enters the agent context, so
+the MCP gateway middleware (`agentshield/gateway/mcp_gateway.py`) participates
+in the defense end-to-end:
+
+- **Inbound:** every `tools/call` already flows through the PolicyEngine, so the
+  destination allow-list, exfiltration guard, and secret guard apply to MCP
+  calls automatically (one enforcement core, three front doors).
+- **Outbound (new):** after an ALLOWed call, the middleware **inspects the tool
+  response** via `ingest()`. Hidden/obfuscated injected instructions (CSS-hidden,
+  HTML comments, zero-width, base64) are **stripped** from both the text and the
+  structured content before the client sees them, and the event is audited
+  (`mcp_response_sanitized`).
+- **Cross-call (new):** when the provenance tag carries a `session_id`, the
+  middleware keeps a per-session `SessionContext`. A poisoned response recorded
+  in a session makes a **later egress call in that same session** fail the
+  exfiltration guard — the indirect-injection sequence (poisoned retrieval →
+  attempted exfiltration) is blocked across MCP calls.
+
+Enable the cross-call link by passing a session id in the tag:
+`{"_agentshield": {"session_id": "<id>", "source": "user", "token": "<hmac>"}}`.
+End-to-end test: `tests/test_mcp_injection_defense.py`.
+
+Limit: a response with rich structured output is fail-safely collapsed to
+sanitized text when hidden content is detected (neutralization favored over
+preserving structure).
+
 ## Limits (documented honestly)
 
 - **Provenance must be supplied by the harness**, not inferred from content —

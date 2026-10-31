@@ -41,6 +41,15 @@ strip, manifest verify, shield.check, audit). Configure with:
 so adoption is "change one line in your MCP client config": point the client
 at the gateway instead of the upstream directly. With no upstream configured
 the gateway falls back to the built-in DEMO tools below (unchanged).
+
+INDIRECT-INJECTION DEFENSE (MCP responses as untrusted data): an MCP tool
+response is itself untrusted content that re-enters the agent context, so after
+an ALLOWed call the middleware inspects the response (ingestion.py): hidden /
+obfuscated instructions (CSS-hidden, HTML comments, zero-width, base64) are
+STRIPPED before the client sees them, and the (untrusted) response is recorded
+on the call's session. A later egress call in the same session is then caught
+as exfiltration by the engine's deterministic guard. Supply a `session_id` in
+the provenance tag to enable the cross-call activity link.
 """
 from __future__ import annotations
 
@@ -57,13 +66,24 @@ from typing import Any
 import mcp.types as mcp_types
 from mcp.server.mcpserver import MCPServer
 
+from ..activity import SessionContext
 from ..engine_factory import AgentShield
+from ..ingestion import Channel, Provenance
 from ..models import Decision, EnforcementResult, PolicyReason, ToolCall
 from ..policy.manifest import ToolManifest
 from . import input_too_large
 from ..provenance import resolve
 
 _TAG = "_agentshield"
+
+#: Max characters of a tool response inspected for hidden/injected content.
+_RESPONSE_SCAN_CAP = 20000
+#: Max concurrent sessions tracked for recent-activity (LRU-evicted).
+_SESSION_CAP = 500
+
+
+def _looks_html(text: str) -> bool:
+    return "<" in text and ">" in text and bool(re.search(r"<[A-Za-z/!]", text))
 
 #: Env var holding the upstream MCP server command (shlex-split). Unset or
 #: blank means "no upstream": the gateway serves the built-in demo tools.
@@ -323,6 +343,37 @@ def _result_is_error(res: Any) -> bool:
     if isinstance(res, dict):
         return bool(res.get("isError") or res.get("is_error"))
     return bool(getattr(res, "is_error", False))
+
+
+def _replace_result_text(res: Any, new_text: str) -> Any:
+    """Return `res` with its text (and any result-wrapped structured content)
+    replaced by `new_text`, preserving the shape the MCP SDK expects.
+
+    Used to neutralize a poisoned tool response: the hidden instructions are
+    stripped from BOTH the text blocks and the structured content so they can't
+    survive in either channel. Tools with richer structured output are
+    fail-safely collapsed to this sanitized text (documented limit).
+    """
+    if isinstance(res, dict):
+        out = dict(res)
+        out["content"] = [{"type": "text", "text": new_text}]
+        sc = out.get("structuredContent")
+        if isinstance(sc, dict):
+            out["structuredContent"] = ({**sc, "result": new_text}
+                                        if "result" in sc else {"result": new_text})
+        return out
+    try:
+        res.content = [mcp_types.TextContent(type="text", text=new_text)]
+        sc = getattr(res, "structured_content", None)
+        if isinstance(sc, dict):
+            res.structured_content = ({**sc, "result": new_text}
+                                      if "result" in sc else {"result": new_text})
+        return res
+    except Exception:
+        return mcp_types.CallToolResult(
+            content=[mcp_types.TextContent(type="text", text=new_text)],
+            structured_content={"result": new_text},
+            is_error=_result_is_error(res))
 _JSON_TO_PY = {
     "string": "str", "integer": "int", "number": "float",
     "boolean": "bool", "array": "list", "object": "dict",
@@ -439,6 +490,53 @@ class EnforcementMiddleware:
         self._tool_lookup = tool_lookup
         # Names of tools forwarded to an upstream server (fail-closed set).
         self._proxied_tools = frozenset(proxied_tools or ())
+        # Per-session recent-activity memory, keyed by the tag's session_id.
+        # Lets the gate connect a poisoned MCP response to a later egress in
+        # the same session (the indirect-injection exfiltration sequence).
+        self._sessions: dict[str, SessionContext] = {}
+
+    def _get_session(self, session_id) -> SessionContext | None:
+        if not session_id or not isinstance(session_id, str):
+            return None
+        sess = self._sessions.get(session_id)
+        if sess is None:
+            if len(self._sessions) >= _SESSION_CAP:
+                self._sessions.pop(next(iter(self._sessions)), None)  # LRU-ish
+            sess = SessionContext(session_id=session_id)
+            self._sessions[session_id] = sess
+        return sess
+
+    def _inspect_response(self, tool_name: str, res, session):
+        """Treat an MCP tool response as UNTRUSTED data: inspect it for hidden/
+        obfuscated injected instructions before it re-enters the agent context.
+
+        When hidden content is found, the response is neutralized — only the
+        visible text (hidden stripped, provenance-banner'd) is returned, so the
+        injected instructions never reach the model. The event is audited, and
+        (if a session is tracked) recorded so a later egress in the same
+        session is seen as exfiltration.
+        """
+        text = _result_text(res)
+        if not text:
+            return res
+        ct = "html" if _looks_html(text) else "text"
+        ingested = self.shield.ingest(
+            text[:_RESPONSE_SCAN_CAP],
+            Provenance(Channel.MCP_RESPONSE, origin=str(tool_name)),
+            content_type=ct, session=session)
+        if not ingested.has_hidden_content:
+            return res
+        self.shield.audit.record(EnforcementResult(
+            call=ToolCall(tool_name=tool_name, source=ingested.trust,
+                          metadata={"transport": "mcp", "phase": "response"}),
+            decision=Decision.ALLOW,
+            reasons=[PolicyReason(
+                rule="mcp_response_sanitized", decision=Decision.ALLOW,
+                detail=(f"Hidden/obfuscated content stripped from "
+                        f"'{tool_name}' response: "
+                        f"{', '.join(r for r, _ in ingested.hidden_segments[:3])}."))],
+            detections=ingested.detections, fail_closed=False))
+        return _replace_result_text(res, ingested.agent_text())
 
     def _audit_downstream_failure(self, call: ToolCall,
                                   exc: Exception) -> None:
@@ -471,6 +569,9 @@ class EnforcementMiddleware:
             tag = {}
         source = resolve(tag.get("source"), tag.get("token"),
                          session_id=tag.get("session_id"))
+        # Recent-activity memory for this session (if the harness supplied an
+        # id): makes the exfil-after-poisoned-response guard work across calls.
+        session = self._get_session(tag.get("session_id"))
         trace_id = tag.get("trace_id")
         parent_id = tag.get("parent_id")
         context = str(tag.get("context", ""))
@@ -527,7 +628,7 @@ class EnforcementMiddleware:
                 if not ok:
                     return _deny(self.shield, call,
                                  "tool_manifest_mismatch", why)
-        result = self.shield.check(call)
+        result = self.shield.check(call, session=session)
 
         if result.decision is Decision.ALLOW:
             # Forward with the sanitized arguments (tag removed).
@@ -558,7 +659,11 @@ class EnforcementMiddleware:
                         detail=(f"{call.tool_name} failed after ALLOW: "
                                 f"{_result_text(res)}"))],
                     fail_closed=True))
-            return res
+            # Inspect the tool RESPONSE as untrusted data: strip hidden
+            # injected instructions before they re-enter the agent context,
+            # and record the (untrusted) ingest so a later egress in this
+            # session is caught as exfiltration.
+            return self._inspect_response(call.tool_name, res, session)
 
         # Blocked: return a structured, inspectable error result. The agent
         # receives the verdict and the reasons — not a silent failure.
