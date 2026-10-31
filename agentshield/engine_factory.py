@@ -17,6 +17,7 @@ from pathlib import Path
 from .audit import AuditLog
 from .config import Config
 from .detection.base import build_detectors
+from .ingestion import IngestedContent, Provenance, ingest
 from .models import Decision, EnforcementResult, PolicyReason, ToolCall
 from .policy import PolicyEngine
 from .policy.integrity import verify_policy_bytes
@@ -57,8 +58,23 @@ class AgentShield:
             enforce = os.getenv("AGENTSHIELD_ENFORCE", "1") != "0"
         self.enforce = enforce
 
-    def check(self, call: ToolCall) -> EnforcementResult:
-        result = self.engine.evaluate(call)
+    def ingest(self, raw: str, provenance: Provenance, *,
+               content_type: str = "text", session=None) -> IngestedContent:
+        """Inspect untrusted content before it enters the agent context.
+
+        Runs the same detectors used at the gate over the content (including its
+        hidden/obfuscated parts), records the event on `session` if given, and
+        returns a provenance-tagged result. Use `.agent_text()` for what the
+        model should see; the gate later reasons about what followed.
+        """
+        result = ingest(raw, provenance, content_type=content_type,
+                        detectors=self.detectors)
+        if session is not None:
+            session.record_ingest(result)
+        return result
+
+    def check(self, call: ToolCall, session=None) -> EnforcementResult:
+        result = self.engine.evaluate(call, session=session)
         if not self.enforce:
             result = EnforcementResult(
                 call=result.call,
@@ -73,4 +89,6 @@ class AgentShield:
                 fail_closed=False,
             )
         self.audit.record(result)
+        if session is not None:
+            session.record_tool(call, result.decision.value)
         return result

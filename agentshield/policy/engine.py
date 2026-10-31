@@ -18,6 +18,7 @@ Design principles, each of which maps to the PS statement:
 from __future__ import annotations
 
 from ..detection.base import Detector
+from ..extract import disallowed_destinations
 from ..models import (
     Decision,
     DetectionResult,
@@ -40,7 +41,13 @@ class PolicyEngine:
         # PolicyEngine constructions in older tests): skips verification.
         self.manifest = manifest
 
-    def evaluate(self, call: ToolCall) -> EnforcementResult:
+    def evaluate(self, call: ToolCall, session=None) -> EnforcementResult:
+        """Evaluate a proposed tool call.
+
+        `session` (optional SessionContext) gives the gate recent-activity
+        awareness — chiefly, whether untrusted content was ingested just before
+        this call, which is what turns an ordinary egress into exfiltration.
+        """
         reasons: list[PolicyReason] = []
         decision = Decision.ALLOW
         fail_closed = False
@@ -164,6 +171,49 @@ class PolicyEngine:
                         f"always requires human approval."),
             ))
             decision = most_restrictive(decision, Decision.REQUIRE_APPROVAL)
+
+        # --- Deterministic data-flow controls (egress / secrets) ----------
+        # "Untrusted influence" = this call's provenance is untrusted, OR
+        # untrusted content was ingested recently in this session. This is what
+        # distinguishes a user-driven send from an injection-driven one.
+        untrusted_influence = call.source.is_untrusted or (
+            session is not None and session.has_recent_untrusted_content())
+
+        if tool_policy and tool_policy.is_egress:
+            bad = disallowed_destinations(
+                call.arguments, defaults.destination_allowlist,
+                tool_policy.destination_args or None)
+            if bad:
+                # Base control: egress to a destination not on the allow-list.
+                d = defaults.on_untrusted_destination
+                rule, detail = ("destination_not_allowlisted",
+                                f"Egress tool '{call.tool_name}' targets "
+                                f"non-allow-listed destination(s): {bad}.")
+                # Escalation: the same send under untrusted influence IS the
+                # exfiltration pattern — deterministic, no keyword/LLM needed.
+                if untrusted_influence:
+                    d = defaults.on_exfiltration_pattern
+                    why = ("call provenance is untrusted"
+                           if call.source.is_untrusted
+                           else "untrusted content was ingested just before this")
+                    rule, detail = ("exfiltration_blocked",
+                                    f"Exfiltration pattern: '{call.tool_name}' "
+                                    f"would send data to {bad} and {why}.")
+                reasons.append(PolicyReason(rule=rule, decision=d, detail=detail))
+                decision = most_restrictive(decision, d)
+
+        # --- Secret access without need -----------------------------------
+        if tool_policy and tool_policy.reads_secrets and untrusted_influence:
+            d = defaults.on_unneeded_secret_access
+            why = ("untrusted provenance" if call.source.is_untrusted
+                   else "recent untrusted content in this session")
+            reasons.append(PolicyReason(
+                rule="secret_access_guard",
+                decision=d,
+                detail=(f"'{call.tool_name}' reads secrets and is invoked under "
+                        f"untrusted influence ({why})."),
+            ))
+            decision = most_restrictive(decision, d)
 
         # --- Step 7: nothing fired → explicit allow -----------------------
         if not reasons:
