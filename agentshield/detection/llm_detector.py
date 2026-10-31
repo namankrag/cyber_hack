@@ -12,12 +12,15 @@ injections that regexes miss. It is deliberately defensive:
     truncated) before being sent.
 
 DATA-SHARING NOTICE: enabling this detector sends the tool-call CONTEXT and
-ARGUMENTS to the configured third-party provider (Google / Groq). That content
+ARGUMENTS to the configured third-party provider (Google / Groq / OpenRouter / Sarvam / NVIDIA / custom). That content
 may be sensitive. Treat it as a data-sharing feature: enable it deliberately,
 scope what reaches it, and prefer the heuristic-only path where data must not
 leave your environment. (A local-model detector is a planned alternative.)
 
-Providers: "gemini" (Google AI Studio free tier) or "groq" (free tier).
+Providers: "gemini" (Google AI Studio free tier), "groq" (free tier),
+"openrouter" (one key, many models via https://openrouter.ai),
+"sarvam" (Sarvam AI, India-focused models), "nvidia" (NVIDIA NIM),
+or "custom" (any OpenAI-compatible endpoint via AGENTSHIELD_LLM_BASE_URL).
 """
 from __future__ import annotations
 
@@ -83,7 +86,74 @@ class LLMDetector(Detector):
             return self._gemini(prompt)
         if self.provider == "groq":
             return self._groq(prompt)
+        if self.provider in ("openrouter", "sarvam", "nvidia", "custom"):
+            return self._openai_compat(prompt)
         raise ValueError(f"Unknown LLM provider '{self.provider}'")
+
+    # --- OpenAI-compatible providers (openrouter / sarvam / nvidia / custom) --
+    # All speak POST {base}/chat/completions with a {model, messages,
+    # temperature} body and return verdict text from choices[0]. Only the auth
+    # header and key env var differ (Sarvam uses api-subscription-key).
+    _COMPAT_DEFAULTS = {
+        # provider: (base_url, key_env, default_model)
+        "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", None),
+        "sarvam": ("https://api.sarvam.ai/v1", "SARVAM_API_KEY", "sarvam-105b"),
+        "nvidia": ("https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY",
+                   "nvidia/llama-3.1-nemotron-70b-instruct"),
+    }
+
+    def _openai_compat(self, prompt: str) -> str:
+        import httpx  # local import: only needed if used
+
+        if self.provider == "custom":
+            base = os.getenv("AGENTSHIELD_LLM_BASE_URL", "").rstrip("/")
+            key_env = "AGENTSHIELD_LLM_API_KEY"
+            default_model: str | None = None
+            if not base:
+                raise RuntimeError(
+                    "AGENTSHIELD_LLM_BASE_URL not set for provider 'custom'")
+        else:
+            base, key_env, default_model = self._COMPAT_DEFAULTS[self.provider]
+        key = os.getenv(key_env)
+        if not key:
+            raise RuntimeError(f"{key_env} not set")
+        model = self.model or os.getenv("AGENTSHIELD_LLM_MODEL") or default_model
+        if not model:
+            raise RuntimeError(
+                "no model configured: set AGENTSHIELD_LLM_MODEL "
+                f"for provider '{self.provider}'"
+            )
+        headers = {"Content-Type": "application/json"}
+        if self.provider == "sarvam":
+            headers["api-subscription-key"] = key
+        else:
+            headers["Authorization"] = f"Bearer {key}"
+        if self.provider == "openrouter":
+            headers["HTTP-Referer"] = "https://github.com/namankrag/cyber_hack"
+            headers["X-Title"] = "AgentShield demo"
+        resp = httpx.post(
+            f"{base}/chat/completions",
+            headers=headers,
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": _SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0,
+            },
+            timeout=self.timeout_s,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"provider '{self.provider}' returned HTTP {resp.status_code}: "
+                f"{resp.text[:200]}"
+            )
+        try:
+            content = resp.json()["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise RuntimeError(f"unexpected provider response shape: {exc}") from exc
+        return content or ""
 
     def _gemini(self, prompt: str) -> str:
         key = os.getenv("GEMINI_API_KEY")
