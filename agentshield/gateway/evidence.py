@@ -1,14 +1,16 @@
 """Evidence manifest for the console.
 
-Every value here is read from a committed artifact or a live gateway value.
-Where a historic run is cited, the recorded commit/date is displayed next to
-the claim; the UI must not present it as a fresh execution.
+Every value here is read from a committed artifact, a build-time manifest,
+or a live gateway value. Where a historic run is cited, the recorded
+commit/date is displayed next to the claim; the UI must not present it as
+a fresh execution. The gateway never shells out to git at request time:
+historic provenance comes from build_info.json, written by CI/Docker via
+scripts/write_build_info.py.
 """
 from __future__ import annotations
 
 import csv
 import json
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,15 +20,25 @@ from ..provenance import insecure_dev_mode
 from . import insights
 
 _ROOT = Path(__file__).resolve().parents[2]
+_BUILD_INFO_PATH = Path(__file__).resolve().parent / "build_info.json"
+_BUILD_INFO_CACHE: dict | None = None
 
 
-def _git(*args: str) -> str | None:
-    try:
-        out = subprocess.run(["git", *args], cwd=_ROOT, capture_output=True,
-                             text=True, timeout=3)
-        return out.stdout.strip() if out.returncode == 0 else None
-    except Exception:
-        return None
+def build_info() -> dict:
+    """Build-time manifest (commit/date/test counts), cached per process.
+
+    Missing or unreadable file -> {} and every historic card reports
+    "not recorded" instead of inventing numbers. Regenerate with
+    `python scripts/write_build_info.py [--pytest-count N]`.
+    """
+    global _BUILD_INFO_CACHE
+    if _BUILD_INFO_CACHE is None:
+        try:
+            data = json.loads(_BUILD_INFO_PATH.read_text(encoding="utf-8"))
+            _BUILD_INFO_CACHE = data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            _BUILD_INFO_CACHE = {}
+    return _BUILD_INFO_CACHE
 
 
 def _count_corpus() -> int:
@@ -80,9 +92,25 @@ def _file_meta(rel: str) -> dict:
     }
 
 
+def _pytest_card_values(info: dict) -> tuple[str, str, str, str]:
+    """(status, status_label, value, detail) for the recorded pytest card."""
+    passed = (info.get("pytest") or {}).get("passed")
+    if isinstance(passed, int):
+        return ("recorded-pass", f"{passed} passed", f"{passed} passed",
+                f"{passed} tests passing, including security-boundary, "
+                "approval and red-team regression tests.")
+    return ("unavailable", "Not recorded",
+            "not recorded",
+            "No build-time test count was recorded. Regenerate the manifest "
+            "with `python scripts/write_build_info.py --pytest-count N` "
+            "(CI fills this in); until then no pass is claimed.")
+
+
 def reports(shield: AgentShield) -> dict:
-    head = _git("rev-parse", "HEAD")
-    commit_date = _git("log", "-1", "--format=%cI")
+    info = build_info()
+    head = info.get("commit")
+    commit_date = info.get("commit_date")
+    branch = info.get("branch")
     ledger = _ledger()
     semgrep = _semgrep()
     corpus_count = _count_corpus()
@@ -97,17 +125,18 @@ def reports(shield: AgentShield) -> dict:
             "id": "pytest",
             "title": "Pytest suite",
             "category": "test",
-            "status": "recorded-pass",
-            "status_label": "Recorded pass",
-            "value": "81 passed",
-            "detail": "81 tests passing, including security-boundary, approval and red-team regression tests.",
-            "source": "docs/RED_LOOP_REPORT.md",
-            "recorded_commit": "9a28520",
-            "recorded_date": "2026-10-30",
+            "status": (pytest_card := _pytest_card_values(info))[0],
+            "status_label": pytest_card[1],
+            "value": pytest_card[2],
+            "detail": pytest_card[3],
+            "source": "scripts/write_build_info.py",
+            "recorded_commit": head,
+            "recorded_date": commit_date,
             "live": False,
-            "artifacts": [_file_meta("docs/RED_LOOP_REPORT.md"), _file_meta("tests")],
-            "note": "Historic run recorded in the repository. The console does not re-run pytest; use the command in Settings to reproduce locally.",
-            "command": "python -m pytest tests -q",
+            "artifacts": [_file_meta("agentshield/gateway/build_info.json"),
+                          _file_meta("tests")],
+            "note": "Count recorded at build time by CI/Docker. The console does not re-run pytest; use the command in Settings to reproduce locally.",
+            "command": "python -m pytest -q",
         },
         {
             "id": "semgrep",
@@ -118,8 +147,8 @@ def reports(shield: AgentShield) -> dict:
             "value": f"{semgrep.get('results', 0)} findings",
             "detail": f"Semgrep {semgrep.get('version', 'unknown')} · {semgrep.get('paths_scanned', 0)} files scanned · 238 rules in the recorded gate.",
             "source": semgrep.get("path", "semgrep.json"),
-            "recorded_commit": "9a28520",
-            "recorded_date": "2026-10-30",
+            "recorded_commit": head,
+            "recorded_date": commit_date,
             "live": False,
             "artifacts": [_file_meta("semgrep.json")],
             "semgrep": semgrep,
@@ -135,8 +164,8 @@ def reports(shield: AgentShield) -> dict:
             "value": f"{ledger.get('rows', 0)} entries",
             "detail": "Deduplicated attack findings across two waves. Statuses and severities are read from the CSV, not inferred.",
             "source": ledger.get("path", "docs/red_loop_ledger.csv"),
-            "recorded_commit": "a5a72d2",
-            "recorded_date": "2026-10-30",
+            "recorded_commit": head,
+            "recorded_date": commit_date,
             "live": False,
             "artifacts": [_file_meta("docs/red_loop_ledger.csv")],
             "ledger": ledger,
@@ -152,8 +181,8 @@ def reports(shield: AgentShield) -> dict:
             "value": "6 beats",
             "detail": f"Deterministic RAG + enforcement demo over a {corpus_count}-document, fully UNTRUSTED corpus.",
             "source": "examples/rag_demo.py",
-            "recorded_commit": "a463013",
-            "recorded_date": "2026-10-30",
+            "recorded_commit": head,
+            "recorded_date": commit_date,
             "live": False,
             "artifacts": [_file_meta("examples/rag_demo.py"), _file_meta("agentshield/data/rag_corpus.jsonl")],
             "corpus_docs": corpus_count,
@@ -230,16 +259,19 @@ def reports(shield: AgentShield) -> dict:
             "command": "sha256sum policies/default.yaml",
         },
     ]
+    pytest_passed = (info.get("pytest") or {}).get("passed")
     return {
         "generated_at": time.time(),
         "repo": {
             "commit": head,
             "commit_date": commit_date,
-            "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
+            "branch": branch,
         },
         "reports": reports_list,
         "baseline": {
-            "pytest": "81 passing (recorded)",
+            "pytest": (f"{pytest_passed} passing (recorded)"
+                       if isinstance(pytest_passed, int)
+                       else "not recorded"),
             "semgrep_rules": 238,
             "semgrep_findings": semgrep.get("results", 0),
             "rag_beats": 6,

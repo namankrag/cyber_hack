@@ -13,6 +13,17 @@ WORKDIR /app
 COPY requirements.lock .
 RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY . .
+# Build-time evidence manifest (B6): records commit/date/test counts for
+# the console evidence page. The gateway never shells out to git at request
+# time, so the image stamps its own provenance here (CI passes GITHUB_SHA;
+# Render can pass RENDER_GIT_COMMIT as a build arg; pass PYTEST_COUNT to
+# record the suite count instead of "not recorded").
+ARG BUILD_COMMIT=""
+ARG RENDER_GIT_COMMIT=""
+ARG GITHUB_SHA=""
+ARG PYTEST_COUNT=""
+RUN if [ -n "$PYTEST_COUNT" ]; then python scripts/write_build_info.py --pytest-count "$PYTEST_COUNT"; else python scripts/write_build_info.py; fi \
+ && python -c "from agentshield.gateway.evidence import build_info; print(build_info())"
 
 # Pre-warm: download the Chroma ONNX embedding model + verify the policy loads,
 # so the first demo request never pays a cold-download pause.

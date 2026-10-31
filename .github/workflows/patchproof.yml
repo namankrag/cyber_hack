@@ -92,8 +92,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Root test suite
-        run: python -m pytest -q
+      - name: Root test suite + build-time evidence manifest (B6)
+        run: |
+          set -o pipefail
+          OUT=$(python -m pytest -q -p no:cacheprovider 2>&1 | tee /dev/stderr | tail -1)
+          COUNT=$(echo "$OUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
+          python scripts/write_build_info.py --pytest-count "$COUNT"
+          python -c "from agentshield.gateway.evidence import build_info; print(build_info())"
 
       - name: SecureAI evaluation (8/8 gates)
         run: python -m secureai eval --once --out-dir eval-out

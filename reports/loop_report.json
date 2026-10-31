@@ -65,7 +65,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.936
+          "latency_ms": 0.919
         },
         {
           "tool": "send_email",
@@ -73,7 +73,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.734
+          "latency_ms": 0.72
         },
         {
           "tool": "transfer_funds",
@@ -81,7 +81,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.678
+          "latency_ms": 0.742
         }
       ],
       "bridge_scans_before": [
@@ -445,7 +445,7 @@
         "severity": "critical",
         "severity_rationale": "Pre-auth data exposure / full auth bypass; trivially exploitable, high impact.",
         "patch_rationale": "Use a parameterized query so user input is bound as data, never parsed as SQL. Closes CWE-89 without changing behaviour for legitimate credentials.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -102,13 +102,12 @@\n         data = request.get_json(silent=True) or {}\n         username = data.get(\"username\", \"\")\n         password = data.get(\"password\", \"\")\n-        # VULN[sqli]: CWE-89 \u2014 user input concatenated straight into SQL.\n-        query = (\n-            \"SELECT * FROM users WHERE username = '%s' AND password = '%s'\"\n-            % (username, password)\n-        )\n+        # FIX[sqli]: parameterized query \u2014 input is bound, not interpolated.\n         try:\n-            row = conn.execute(query).fetchone()\n+            row = conn.execute(\n+                \"SELECT * FROM users WHERE username = ? AND password = ?\",\n+                (username, password),\n+            ).fetchone()\n         except sqlite3.Error as exc:\n             return jsonify(error=f\"query error: {exc}\"), 400\n         if row is None:\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n@@ -102,13 +102,12 @@\n         data = request.get_json(silent=True) or {}\n         username = data.get(\"username\", \"\")\n         password = data.get(\"password\", \"\")\n-        # VULN[sqli]: CWE-89 \u2014 user input concatenated straight into SQL.\n-        query = (\n-            \"SELECT * FROM users WHERE username = '%s' AND password = '%s'\"\n-            % (username, password)\n-        )\n+        # FIX[sqli]: parameterized query \u2014 input is bound, not interpolated.\n         try:\n-            row = conn.execute(query).fetchone()\n+            row = conn.execute(\n+                \"SELECT * FROM users WHERE username = ? AND password = ?\",\n+                (username, password),\n+            ).fetchone()\n         except sqlite3.Error as exc:\n             return jsonify(error=f\"query error: {exc}\"), 400\n         if row is None:\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -533,7 +533,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.533
+          "latency_ms": 0.827
         },
         {
           "tool": "send_email",
@@ -541,7 +541,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.403
+          "latency_ms": 0.686
         },
         {
           "tool": "transfer_funds",
@@ -549,7 +549,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.15
+          "latency_ms": 0.641
         }
       ],
       "bridge_scans_after": [
@@ -878,7 +878,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 3048.933,
+      "elapsed_ms": 2566.668,
       "status": "progress"
     },
     {
@@ -891,7 +891,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.182
+          "latency_ms": 0.848
         },
         {
           "tool": "send_email",
@@ -899,7 +899,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.051
+          "latency_ms": 0.744
         },
         {
           "tool": "transfer_funds",
@@ -907,7 +907,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.943
+          "latency_ms": 0.633
         }
       ],
       "bridge_scans_before": [
@@ -1238,7 +1238,7 @@
         "severity": "critical",
         "severity_rationale": "Arbitrary command execution on the host; trivially exploitable, highest impact.",
         "patch_rationale": "Reject non-hostname input and call ping via an argument list (no shell), so metacharacters cannot start a new command. Closes CWE-78; legitimate hostnames still work. Verified portably: the echo runs through the Python interpreter (no echo binary needed), still with no shell and allow-listed input.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -138,8 +138,15 @@\n             return jsonify(error=\"unauthenticated\"), 401\n         data = request.get_json(silent=True) or {}\n         host = data.get(\"host\", \"\")\n-        # VULN[cmdi]: CWE-78 \u2014 user input flows into a shell command.\n-        output = os.popen(\"echo pinging \" + host).read()\n+        # FIX[cmdi]: validate input and avoid the shell (argument list).\n+        # PORTABILITY (SecureAI integration): echo via the interpreter rather\n+        # than an `echo` binary (Windows has no echo.exe); still no shell.\n+        import re as _re, subprocess as _sp, sys as _sys\n+        if not _re.fullmatch(r\"[A-Za-z0-9_.-]+\", host or \"\"):\n+            return jsonify(error=\"invalid host\"), 400\n+        output = _sp.run([_sys.executable, \"-c\",\n+                          \"import sys; print('pinging ' + sys.argv[1])\", host],\n+                         capture_output=True, text=True, timeout=5).stdout\n         return jsonify(host=host, output=output)\n \n     @app.get(\"/files\")\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n@@ -138,8 +138,15 @@\n             return jsonify(error=\"unauthenticated\"), 401\n         data = request.get_json(silent=True) or {}\n         host = data.get(\"host\", \"\")\n-        # VULN[cmdi]: CWE-78 \u2014 user input flows into a shell command.\n-        output = os.popen(\"echo pinging \" + host).read()\n+        # FIX[cmdi]: validate input and avoid the shell (argument list).\n+        # PORTABILITY (SecureAI integration): echo via the interpreter rather\n+        # than an `echo` binary (Windows has no echo.exe); still no shell.\n+        import re as _re, subprocess as _sp, sys as _sys\n+        if not _re.fullmatch(r\"[A-Za-z0-9_.-]+\", host or \"\"):\n+            return jsonify(error=\"invalid host\"), 400\n+        output = _sp.run([_sys.executable, \"-c\",\n+                          \"import sys; print('pinging ' + sys.argv[1])\", host],\n+                         capture_output=True, text=True, timeout=5).stdout\n         return jsonify(host=host, output=output)\n \n     @app.get(\"/files\")\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -1306,7 +1306,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.943
+          "latency_ms": 0.81
         },
         {
           "tool": "send_email",
@@ -1314,7 +1314,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.799
+          "latency_ms": 0.689
         },
         {
           "tool": "transfer_funds",
@@ -1322,7 +1322,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.784
+          "latency_ms": 0.636
         }
       ],
       "bridge_scans_after": [
@@ -1618,7 +1618,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 4063.694,
+      "elapsed_ms": 3012.373,
       "status": "progress"
     },
     {
@@ -1631,7 +1631,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.607
+          "latency_ms": 0.85
         },
         {
           "tool": "send_email",
@@ -1639,7 +1639,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.332
+          "latency_ms": 0.71
         },
         {
           "tool": "transfer_funds",
@@ -1647,7 +1647,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.216
+          "latency_ms": 0.658
         }
       ],
       "bridge_scans_before": [
@@ -1945,7 +1945,7 @@
         "severity": "high",
         "severity_rationale": "Authenticated user can access other users' data; easy to exploit, confidentiality impact.",
         "patch_rationale": "Enforce that the account's owner_id matches the authenticated caller (admins exempt). Closes CWE-639; owners still read their own accounts unchanged.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -124,8 +124,9 @@\n         ).fetchone()\n         if acct is None:\n             return jsonify(error=\"not found\"), 404\n-        # VULN[idor]: CWE-639 \u2014 any authenticated user can read ANY account;\n-        # the handler never checks that the account belongs to the caller.\n+        # FIX[idor]: ownership check \u2014 caller must own the account (or be admin).\n+        if acct[\"owner_id\"] != user[\"id\"] and user[\"role\"] != \"admin\":\n+            return jsonify(error=\"forbidden\"), 403\n         return jsonify(\n             id=acct[\"id\"], owner_id=acct[\"owner_id\"],\n             balance=acct[\"balance\"], note=acct[\"note\"],\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n@@ -124,8 +124,9 @@\n         ).fetchone()\n         if acct is None:\n             return jsonify(error=\"not found\"), 404\n-        # VULN[idor]: CWE-639 \u2014 any authenticated user can read ANY account;\n-        # the handler never checks that the account belongs to the caller.\n+        # FIX[idor]: ownership check \u2014 caller must own the account (or be admin).\n+        if acct[\"owner_id\"] != user[\"id\"] and user[\"role\"] != \"admin\":\n+            return jsonify(error=\"forbidden\"), 403\n         return jsonify(\n             id=acct[\"id\"], owner_id=acct[\"owner_id\"],\n             balance=acct[\"balance\"], note=acct[\"note\"],\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -2003,7 +2003,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.192
+          "latency_ms": 0.859
         },
         {
           "tool": "send_email",
@@ -2011,7 +2011,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.053
+          "latency_ms": 0.717
         },
         {
           "tool": "transfer_funds",
@@ -2019,7 +2019,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.963
+          "latency_ms": 0.691
         }
       ],
       "bridge_scans_after": [
@@ -2282,7 +2282,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 2543.091,
+      "elapsed_ms": 1932.149,
       "status": "progress"
     },
     {
@@ -2295,7 +2295,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 0.863
+          "latency_ms": 0.899
         },
         {
           "tool": "send_email",
@@ -2303,7 +2303,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.691
+          "latency_ms": 0.75
         },
         {
           "tool": "transfer_funds",
@@ -2311,7 +2311,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 0.696
+          "latency_ms": 0.641
         }
       ],
       "bridge_scans_before": [
@@ -2576,7 +2576,7 @@
         "severity": "high",
         "severity_rationale": "Reads arbitrary files outside the intended directory; easy to exploit.",
         "patch_rationale": "Resolve the requested path and confirm it stays inside the docs directory before opening it. Closes CWE-22; legitimate files in docs/ still load.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -153,8 +153,11 @@\n     @app.get(\"/files\")\n     def read_file():\n         name = request.args.get(\"name\", \"welcome.txt\")\n-        # VULN[pathtrav]: CWE-22 \u2014 user input used to build a filesystem path.\n-        content = open(docs_dir + \"/\" + name).read()\n+        # FIX[pathtrav]: resolve and confine the path to docs_dir.\n+        safe = os.path.normpath(os.path.join(docs_dir, name))\n+        if safe != docs_dir and not safe.startswith(docs_dir + os.sep):\n+            return jsonify(error=\"invalid path\"), 400\n+        content = open(safe).read()\n         return jsonify(name=name, content=content)\n \n     @app.get(\"/greet\")\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n@@ -153,8 +153,11 @@\n     @app.get(\"/files\")\n     def read_file():\n         name = request.args.get(\"name\", \"welcome.txt\")\n-        # VULN[pathtrav]: CWE-22 \u2014 user input used to build a filesystem path.\n-        content = open(docs_dir + \"/\" + name).read()\n+        # FIX[pathtrav]: resolve and confine the path to docs_dir.\n+        safe = os.path.normpath(os.path.join(docs_dir, name))\n+        if safe != docs_dir and not safe.startswith(docs_dir + os.sep):\n+            return jsonify(error=\"invalid path\"), 400\n+        content = open(safe).read()\n         return jsonify(name=name, content=content)\n \n     @app.get(\"/greet\")\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -2624,7 +2624,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.39
+          "latency_ms": 0.918
         },
         {
           "tool": "send_email",
@@ -2632,7 +2632,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.147
+          "latency_ms": 0.787
         },
         {
           "tool": "transfer_funds",
@@ -2640,7 +2640,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.037
+          "latency_ms": 0.63
         }
       ],
       "bridge_scans_after": [
@@ -2870,7 +2870,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 2793.159,
+      "elapsed_ms": 1945.799,
       "status": "progress"
     },
     {
@@ -2883,7 +2883,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.638
+          "latency_ms": 0.846
         },
         {
           "tool": "send_email",
@@ -2891,7 +2891,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 1.537
+          "latency_ms": 0.704
         },
         {
           "tool": "transfer_funds",
@@ -2899,7 +2899,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.391
+          "latency_ms": 0.649
         }
       ],
       "bridge_scans_before": [
@@ -3131,7 +3131,7 @@
         "severity": "medium",
         "severity_rationale": "Reflected script executes in a victim's browser; session/credential theft.",
         "patch_rationale": "HTML-escape user input before reflecting it. Closes CWE-79; the greeting still shows the name, now inert.",
-        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-3gi4samr\\vulnbank_app.py\n@@ -163,8 +163,9 @@\n     @app.get(\"/greet\")\n     def greet():\n         name = request.args.get(\"name\", \"world\")\n-        # VULN[xss]: CWE-79 \u2014 user input reflected into HTML without escaping.\n-        return \"<h1>Hello %s</h1>\" % name\n+        # FIX[xss]: escape user input before putting it in HTML.\n+        from markupsafe import escape as _escape\n+        return \"<h1>Hello %s</h1>\" % _escape(name)\n \n     # -- DECOYS: scanner-noisy shapes that exploits cannot confirm ------\n     # Each handler below is deliberately flagged by the AST scanner (and the\n",
+        "diff": "--- a/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n+++ b/C:\\Users\\goels\\AppData\\Local\\Temp\\secureai-remediation-_enwabos\\vulnbank_app.py\n@@ -163,8 +163,9 @@\n     @app.get(\"/greet\")\n     def greet():\n         name = request.args.get(\"name\", \"world\")\n-        # VULN[xss]: CWE-79 \u2014 user input reflected into HTML without escaping.\n-        return \"<h1>Hello %s</h1>\" % name\n+        # FIX[xss]: escape user input before putting it in HTML.\n+        from markupsafe import escape as _escape\n+        return \"<h1>Hello %s</h1>\" % _escape(name)\n \n     # -- DECOYS: scanner-noisy shapes that exploits cannot confirm ------\n     # Each handler below is deliberately flagged by the AST scanner (and the\n",
         "test_status": "FIXED & VERIFIED",
         "exploit_blocked": true,
         "regression_before_passed": true,
@@ -3169,7 +3169,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; Source 'untrusted' is not in this tool's allow-list ['user', 'system'].",
-          "latency_ms": 1.386
+          "latency_ms": 0.999
         },
         {
           "tool": "send_email",
@@ -3177,7 +3177,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.; 'send_email' is a high-impact action that always requires human approval.",
-          "latency_ms": 0.998
+          "latency_ms": 0.815
         },
         {
           "tool": "transfer_funds",
@@ -3185,7 +3185,7 @@
           "actual": "deny",
           "blocked": true,
           "reason": "Tool 'transfer_funds' is disabled by policy.; heuristic flagged injection (score 0.6): override: 'ignore previous instructions'. Tool sensitivity=high.; Call originated from UNTRUSTED content (e.g. a retrieved document), not the user. Tool sensitivity=high.",
-          "latency_ms": 1.157
+          "latency_ms": 0.64
         }
       ],
       "bridge_scans_after": [
@@ -3382,7 +3382,7 @@
       "regression_passed": true,
       "runtime_attacks_blocked": true,
       "strict_progress": true,
-      "elapsed_ms": 2781.272,
+      "elapsed_ms": 2011.052,
       "status": "converged"
     }
   ]

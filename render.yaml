@@ -6,6 +6,17 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
+    # Audit durability (B7): Render restarts wipe the JSONL evidence trail
+    # unless the audit paths below live on this disk (needs a paid plan:
+    # free has no disks — delete the disk block on free and use a shared
+    # backend instead). Alternative without disks: Postgres/Redis backends
+    # (AGENTSHIELD_AUDIT_BACKEND / AGENTSHIELD_APPROVAL_BACKEND plus
+    # AGENTSHIELD_POSTGRES_DSN / AGENTSHIELD_REDIS_URL with the optional
+    # drivers installed — see docker-compose.yml and docs/SCALABILITY.md).
+    disk:
+      name: agentshield-audit
+      mountPath: /var/agentshield
+      sizeGB: 1
     envVars:
       - key: AGENTSHIELD_HARNESS_SECRET
         sync: false
@@ -13,14 +24,18 @@ services:
         sync: false
       - key: AGENTSHIELD_ADMIN_KEY
         sync: false
-    # Audit durability (needs a paid plan: free has no disks). Uncomment
-    # together with a disk to stop restarts wiping the evidence trail:
-    # disk:
-    #   name: agentshield-audit
-    #   mountPath: /var/agentshield
-    #   sizeGB: 1
-    # envVars:
-    #   - key: AGENTSHIELD_AUDIT_PATH
-    #     value: /var/agentshield/audit.log.jsonl
+      - key: AGENTSHIELD_AUDIT_PATH
+        value: /var/agentshield/audit.log.jsonl
+      - key: AGENTSHIELD_REDTEAM_AUDIT_PATH
+        value: /var/agentshield/audit.redteam.jsonl
+      # Shared-backend alternative (diskless, needs optional drivers):
+      # - key: AGENTSHIELD_AUDIT_BACKEND
+      #   value: postgres
+      # - key: AGENTSHIELD_APPROVAL_BACKEND
+      #   value: redis
+      # - key: AGENTSHIELD_POSTGRES_DSN
+      #   sync: false
+      # - key: AGENTSHIELD_REDIS_URL
+      #   sync: false
       - key: AGENTSHIELD_DETECTORS
         value: heuristic

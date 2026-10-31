@@ -137,3 +137,18 @@ Postgres-backed audit with rotation · OPA policy backend · structured request-
   isolated loop copy; the source fixture is never modified.
 - **`secureai watch` monitors only that fixture.** It re-runs evaluation when
   the bundled VulnBank fixture's fingerprint changes, and nothing else.
+
+## Browser access is proxy-only (no CORS wildcard)
+
+- The FastAPI gateway ships **no `CORSMiddleware` and no
+  `Access-Control-Allow-Origin` header**: browsers are never invited to call
+  it cross-origin. The Next.js console talks only to its same-origin
+  `/api/[...path]` route, which allow-lists `health`, `ready` and `v1/`
+  paths, forwards the request server-side with the configured API/admin
+  keys, and returns the result (`web/src/app/api/[...path]/route.ts`).
+  The browser never holds a gateway key.
+- Do not "fix" console connectivity by adding `allow_origins=["*"]`: that
+  would let any site the operator visits spend the gateway's API-key
+  authority with the operator's ambient access. If a direct browser ->
+  gateway call is ever needed, pin the exact console origin and keep
+  credentials out of client-side code.
