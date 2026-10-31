@@ -63,7 +63,7 @@ jobs:
         # VERIFIED — that nonzero exit is what fails the PR gate.
 
       - name: SARIF shape check
-        run: python -m patchproof sarif --check ${{ matrix.fixture }}.sarif
+        run: PYTHONPATH=patchproof python -m patchproof sarif --check ${{ matrix.fixture }}.sarif
 
       - name: Upload SARIF to code scanning
         uses: github/codeql-action/upload-sarif@v3
