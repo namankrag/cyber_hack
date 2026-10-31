@@ -3,9 +3,11 @@ import {
   BadgeCheck,
   BarChart3,
   Database,
+  FileSearch,
   FlaskConical,
   Gauge,
   HeartPulse,
+  Network,
   Scale,
   ScrollText,
   Settings2,
@@ -84,6 +86,12 @@ export const workspaceNavGroups: WorkspaceNavGroup[] = [
         badge: "pending",
       },
       {
+        href: "/workspace/mcp",
+        label: "MCP Gateway",
+        description: "Live MCP session and the can-it-fake-trust check",
+        icon: Network,
+      },
+      {
         href: "/workspace/policy",
         label: "Policy Manager",
         description: "Read-only policy, integrity and evaluation order",
@@ -94,6 +102,12 @@ export const workspaceNavGroups: WorkspaceNavGroup[] = [
   {
     label: "Testing",
     items: [
+      {
+        href: "/workspace/document-lab",
+        label: "Document Lab",
+        description: "Upload a document: every action decided, the attacked code fixed",
+        icon: FileSearch,
+      },
       {
         href: "/workspace/redteam",
         label: "Red Team Lab",

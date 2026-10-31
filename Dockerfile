@@ -36,4 +36,6 @@ USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
-CMD ["sh", "-c", "uvicorn agentshield.gateway.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# AGENTSHIELD_BIND_HOST: set to "::" on hosts whose private network is
+# IPv6-only (older Railway environments) so sibling services can reach it.
+CMD ["sh", "-c", "uvicorn agentshield.gateway.app:app --host ${AGENTSHIELD_BIND_HOST:-0.0.0.0} --port ${PORT:-8000}"]

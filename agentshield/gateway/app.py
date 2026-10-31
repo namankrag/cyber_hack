@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field
 
 from . import MAX_BODY_BYTES
 from . import evidence as evidence_module
-from . import insights, redteam
+from . import doclab, insights, mcp_demo, redteam, trust_demo
 from .dashboard import PAGE as _DASHBOARD_PAGE
 from ..engine_factory import AgentShield
 from ..models import PolicyReason, ToolCall
@@ -70,6 +70,9 @@ async def _security_headers(request: Request, call_next):
     return response
 
 
+_ROUTE_BODY_LIMITS = {"/v1/document/analyze": doclab.MAX_BODY_BYTES}
+
+
 @app.middleware("http")
 async def _body_size_limit(request: Request, call_next):
     """Reject oversized bodies with 413 before detection burns CPU.
@@ -81,8 +84,10 @@ async def _body_size_limit(request: Request, call_next):
     """
     if request.method in ("POST", "PUT", "PATCH"):
         declared = request.headers.get("content-length")
+        # One route carries a whole document; doclab bounds what it scans.
+        limit = _ROUTE_BODY_LIMITS.get(request.url.path, MAX_BODY_BYTES)
         if (declared is not None and declared.isdigit()
-                and int(declared) > MAX_BODY_BYTES):
+                and int(declared) > limit):
             return JSONResponse({"detail": "request body too large"},
                                 status_code=413)
     return await call_next(request)
@@ -463,6 +468,58 @@ def redteam_run(body: dict) -> dict:
     """
     try:
         return redteam.run(shield, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/v1/mcp/demo", dependencies=[Depends(require_api_key)])
+def mcp_demo_run() -> dict:
+    """One real MCP session (in-memory transport) through the enforcement middleware.
+
+    Scenarios, arguments and trust are fixed server-side; the body is ignored.
+    """
+    try:
+        return mcp_demo.run(shield)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/v1/trust/demo", dependencies=[Depends(require_api_key)])
+def trust_demo_run() -> dict:
+    """Claimed-user calls with no token, a genuine token, and a replayed token.
+
+    409 in insecure dev mode: without a harness secret the comparison would
+    be misleading (claims are honoured), so it refuses instead of lying.
+    """
+    try:
+        return trust_demo.run(shield)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/v1/evidence/scorecard", dependencies=[Depends(require_api_key)])
+def evidence_scorecard() -> dict:
+    return evidence_module.scorecard()
+
+
+@app.get("/v1/document/samples", dependencies=[Depends(require_api_key)])
+def document_samples() -> dict:
+    return {"samples": [{"id": key, "title": s["title"], "filename": s["filename"]}
+                        for key, s in doclab.SAMPLES.items()],
+            "max_file_bytes": doclab.MAX_FILE_BYTES}
+
+
+@app.post("/v1/document/analyze", dependencies=[Depends(require_api_key)])
+def document_analyze(body: dict) -> dict:
+    """Run one document through PS-1 (runtime) and, on a block, PS-2 (code).
+
+    The tool calls are built server-side from fixed rules over the
+    document's text; the upload cannot choose tools, arguments or trust.
+    Sync def: FastAPI runs it in the threadpool, so the bounded detector
+    and PatchProof work never blocks the event loop.
+    """
+    try:
+        return doclab.analyze(shield, body)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

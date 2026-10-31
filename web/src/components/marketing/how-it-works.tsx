@@ -75,7 +75,7 @@ function StepVisual({ index }: { index: number }) {
             {"\n  "}
             <span className="code-key">&quot;tool&quot;</span>
             <span className="code-dim">: </span>
-            <span className="code-string">&quot;payments.transfer&quot;</span>
+            <span className="code-string">&quot;transfer_funds&quot;</span>
             <span className="code-dim">,</span>
             {"\n  "}
             <span className="code-key">&quot;amount&quot;</span>
@@ -136,7 +136,7 @@ function StepVisual({ index }: { index: number }) {
               <ArrowRight className="h-4 w-4" />
             </span>
             <span>
-              <strong>payments.transfer</strong>
+              <strong>transfer_funds</strong>
               <small>requested by finance-copilot</small>
             </span>
             <span className="trust-badge trust-bad">HIGH RISK</span>
@@ -212,7 +212,7 @@ function StepVisual({ index }: { index: number }) {
         <div>
           <span className="mono-label text-[#8b8a86]">DECISION</span>
           <strong className="enforce-verdict">DENY</strong>
-          <p>payments.transfer blocked</p>
+          <p>transfer_funds blocked</p>
         </div>
       </div>
       <div className="enforce-meta">
@@ -220,13 +220,13 @@ function StepVisual({ index }: { index: number }) {
           <CircleCheck className="h-3.5 w-3.5" /> Tool never executed
         </span>
         <span>
-          <Fingerprint className="h-3.5 w-3.5" /> Audit ASH-8F2A
+          <Fingerprint className="h-3.5 w-3.5" /> Audit call_86c3…
         </span>
       </div>
       <div className="enforce-audit">
         <span className="mono-label text-[#8b8a86]">AUDIT ENTRY</span>
         <p>
-          2026-10-31T14:32:08Z · deny · finance-copilot · payments.transfer
+          2026-10-31T14:32:08Z · deny · finance-copilot · transfer_funds
         </p>
         <span className="audit-hash">sha256: 9c1e…7b2a</span>
       </div>
@@ -300,7 +300,7 @@ export function HowItWorks() {
               <span className="hiw-stage-icon">
                 <Icon className="h-4 w-4" strokeWidth={1.9} />
               </span>
-              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-[#F8F7F4]/60">
+              <span className="font-mono text-[length:var(--as-fs-label)] font-medium uppercase tracking-[0.08em] text-[#F8F7F4]/70">
                 {step.meta}
               </span>
               <span className="hiw-step-counter">

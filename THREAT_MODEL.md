@@ -75,9 +75,11 @@ radius of a successful prompt injection**, not to perfectly detect injections.
   the MCP gateway or the `guard` wrapper. A tool invoked directly, around the
   enforcement point, is not protected. The `/v1/check` HTTP endpoint is a
   *decision* point and is advisory by itself.
-- **Upstream MCP passthrough.** The MCP gateway currently registers built-in
-  demo tools; proxying an arbitrary upstream MCP server is a planned extension
-  (the enforcement model is identical).
+- **Upstream MCP passthrough (stdio only).** Setting
+  `AGENTSHIELD_UPSTREAM_CMD` makes the MCP gateway front an upstream MCP server
+  over stdio: its tools are listed at startup and every `tools/call` passes
+  through the same enforcement middleware (`examples/proxy_demo.py`). HTTP/SSE
+  upstream transports are not proxied yet.
 - **Transport security & deployment.** TLS, network exposure, process
   permissions, secret storage, and log retention/rotation are the operator's
   responsibility. Do not expose the gateway, `/v1/audit`, or `/v1/evidence`
@@ -115,7 +117,7 @@ radius of a successful prompt injection**, not to perfectly detect injections.
 
 ## Roadmap (deferred hardening)
 
-Upstream MCP proxy passthrough (tool manifest already covers registered tools) ·
+HTTP/SSE upstream MCP transports (stdio passthrough ships) · shared replay cache for multi-worker tokens ·
 local-model detector (no data egress) · CI + dependency lockfiles ·
 Postgres-backed audit with rotation · OPA policy backend · structured request-id logging.
 

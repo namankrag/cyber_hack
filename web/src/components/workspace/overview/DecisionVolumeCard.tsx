@@ -55,12 +55,12 @@ export function DecisionVolumeCard({
             <div className="ws-divider" />
             <div>
               <div className="ws-between mb-1">
-                <span className="ws-label">Volume by bucket</span>
+                <span className="ws-label">Volume over time</span>
                 <span className="ws-hint">
                   {metrics.data.series.length} buckets · {windowLabel}
                 </span>
               </div>
-              <TrendChart series={metrics.data.series} />
+              <TrendChart series={metrics.data.series} legend={false} />
             </div>
             <div className="ws-banner">
               <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />

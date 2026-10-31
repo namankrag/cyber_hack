@@ -25,6 +25,9 @@ httpx>=0.27.0         # for testing the FastAPI endpoint
 # --- PatchProof code layer (synthetic VulnBank fixture + isolated sandbox) ---
 flask>=3.0.0              # fixture web app + Flask test client for exploits/regressions
 
+# --- Document Lab (upload a document -> PS-1 runtime -> PS-2 code) ---
+pypdf>=6.20.1             # text extraction for uploaded PDFs (pure Python, no deps on 3.11+)
+
 # --- Platform-specific transitive pin (B1) ---
 # pywin32 is pulled in by mcp on Windows only. The marker keeps Linux/CI and
 # the Docker build resolving clean while Windows installs keep working.

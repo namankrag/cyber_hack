@@ -47,5 +47,6 @@ already in the benchmark for the India angle. Wedge: a drop-in proxy
 plus a one-file CI gate. Open core with per-agent SaaS; compliance
 logging maps to OWASP LLM01/LLM06, India's DPDP Act and RBI audit
 expectations, and EU AI Act record-keeping. What we did not solve —
-replayable provenance tokens, no upstream MCP proxy yet,
-TLS/secrets operator-owned — is in THREAT_MODEL.md, not hidden.
+a per-process token replay cache (multi-worker needs a shared backend),
+stdio-only upstream MCP proxying (no HTTP/SSE yet), TLS/secrets
+operator-owned — is in THREAT_MODEL.md, not hidden.

@@ -481,3 +481,271 @@ export interface EvidenceReportsResponse {
 export interface AuditResponse {
   entries: AuditEntry[];
 }
+
+/* -------------------------------------------------------------------------
+   Document Lab (POST /v1/document/analyze): one document through PS-1
+   (runtime decisions) and, when a governed tool is blocked, PS-2 (code).
+   ------------------------------------------------------------------------- */
+
+export interface DocumentSample {
+  id: string;
+  title: string;
+  filename: string;
+}
+
+export interface DocumentSamplesResponse {
+  samples: DocumentSample[];
+  max_file_bytes: number;
+}
+
+export interface DocumentFlaggedSentence {
+  text: string;
+  score: number;
+  threat: boolean;
+  signals: string[];
+}
+
+export interface DetectorVerdict {
+  detector: string;
+  score: number;
+  threat: boolean;
+  signals: string[];
+  error: string | null;
+}
+
+export interface DocumentDecision {
+  call_id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  source: string;
+  origin: "user_task" | "document_instruction";
+  quote: string | null;
+  narration: string;
+  decision: DecisionValue;
+  would_block: boolean;
+  fail_closed: boolean;
+  reasons: PolicyReason[];
+  detections: DetectorVerdict[];
+  headline: string;
+}
+
+export interface CodeIssue {
+  cwe: string;
+  title: string;
+  severity: string;
+  severity_rationale: string;
+  location: string;
+  route: string | null;
+  param: string | null;
+  snippet: string;
+  exploit: string | null;
+  status: string;
+  patch_rationale: string | null;
+  diff: string;
+  lines_added: number;
+  lines_removed: number;
+  exploit_blocked: boolean;
+  regression_passed: boolean;
+  regression_checks: number;
+  variants_blocked: number;
+  variants_total: number;
+  accepted: boolean;
+}
+
+export interface CodeTarget {
+  target: string;
+  sha256: string;
+  engine: string;
+  raw_alerts: number;
+  confirmed: number;
+  fixed: number;
+  false_positives_dropped: number;
+  precision_before: number;
+  precision_after: number;
+  issues: CodeIssue[];
+  computed_at: number;
+  duration_ms: number;
+  cached: boolean;
+}
+
+export interface DocumentAnalysis {
+  generated_at: number;
+  document: {
+    filename: string;
+    kind: string;
+    bytes: number;
+    sha256: string;
+    pages: number | null;
+    pages_read: number | null;
+    chars: number;
+    truncated: boolean;
+    excerpt: string;
+    sample: string | null;
+  };
+  ps1: {
+    provenance: { source: string; reason: string };
+    detection: {
+      detectors: string[];
+      sentences_scanned: number;
+      document_scan: DetectorVerdict[];
+      flagged: DocumentFlaggedSentence[];
+      flagged_total: number;
+    };
+    agent_note: string;
+    decisions: DocumentDecision[];
+    summary: Record<DecisionValue, number>;
+    enforced: boolean;
+  };
+  ps2: {
+    triggered: boolean;
+    available: boolean;
+    reason?: string;
+    blocked_tools?: string[];
+    registry?: Record<string, string>;
+    targets?: CodeTarget[];
+  };
+}
+
+/* ---- Benchmark (GET /v1/bench/latest) ---------------------------------- */
+
+export interface BenchLatency {
+  p50: number;
+  p95: number;
+  p99: number;
+}
+
+export interface BenchCase {
+  id: string;
+  label: string;
+  attack_type: string;
+  tool: string;
+  source: string;
+  expected: string;
+  actual_on: string;
+  actual_off: string;
+  latency_ms_on: number;
+  latency_ms_off: number;
+  match_on: boolean;
+}
+
+export interface BenchRun {
+  generated_at_utc: string;
+  tool: string;
+  n_cases: number;
+  config: { detectors: string[]; enforce: string; synthetic: boolean; keyless: boolean };
+  summary: {
+    n_total: number;
+    n_malicious: number;
+    n_benign: number;
+    n_approval: number;
+    attack_success_off: number;
+    attack_success_on: number;
+    attack_held_on: number;
+    attack_denied_on: number;
+    false_positive_rate_benign: number;
+    false_hold_rate_benign: number;
+    approval_correctness: number;
+    expected_match_rate_on: number;
+    latency_ms_on: BenchLatency;
+    latency_ms_off: BenchLatency;
+  };
+  cases: BenchCase[];
+}
+
+export interface BenchLatestResponse {
+  latest: BenchRun | null;
+}
+
+/* ---- Closed-loop scorecard (GET /v1/evidence/scorecard) ----------------- */
+
+export interface ScorecardGate {
+  passed: boolean;
+  actual: string | number | null;
+  target: string | number | null;
+}
+
+export interface ScorecardIteration {
+  iteration: number;
+  confirmed_before: number | null;
+  confirmed_after: number | null;
+  runtime_attacks_blocked: unknown;
+  deployed_exploit_blocked: boolean | null;
+  regression_passed: boolean | null;
+  elapsed_ms: number | null;
+  status: string | null;
+}
+
+export type ScorecardResponse =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      generated_at: string | null;
+      threshold: number | null;
+      gates: Record<string, ScorecardGate>;
+      passed: boolean | null;
+      loop: {
+        status: string | null;
+        converged: boolean | null;
+        iterations_to_converge: number | null;
+        residual_confirmed: number | null;
+        iterations: ScorecardIteration[];
+      };
+      code_funnel: Record<string, unknown>;
+      runtime_scenarios: Array<{
+        id: string;
+        label: string;
+        attack_type: string;
+        tool: string;
+        expected_decision: string;
+        actual_decision: string;
+        passed: boolean;
+      }>;
+      code_cases: Array<{
+        cwe: string;
+        location: string;
+        severity: string;
+        exploit_confirmed: boolean;
+        patch_accepted: boolean;
+      }>;
+      path: string;
+    };
+
+/* ---- Live MCP session (POST /v1/mcp/demo) ------------------------------ */
+
+export interface McpDemoCall {
+  label: string;
+  tool: string;
+  arguments_without_tag: Record<string, unknown>;
+  asserted_source: string;
+  token_attached: boolean;
+  outcome: "executed" | "blocked";
+  decision: DecisionValue | null;
+  text: string;
+}
+
+export interface McpDemoResponse {
+  transport: string;
+  tools: string[];
+  calls: McpDemoCall[];
+  provenance_mode: "hmac" | "dev";
+  duration_ms: number;
+}
+
+/* ---- Trust demo (POST /v1/trust/demo) ----------------------------------- */
+
+export interface TrustDemoCheck {
+  label: string;
+  asserted_source: string;
+  token: "none" | "valid" | "replayed";
+  resolved_source: string;
+  resolve_reason: string;
+  decision: DecisionValue;
+  reasons: PolicyReason[];
+  call_id: string;
+}
+
+export interface TrustDemoResponse {
+  tool: string;
+  arguments: Record<string, unknown>;
+  checks: TrustDemoCheck[];
+}

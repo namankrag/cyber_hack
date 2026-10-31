@@ -283,3 +283,93 @@ def reports(shield: AgentShield) -> dict:
             "claims": "No test or scan is marked as freshly passed by this endpoint; it reads committed artifacts and live gateway state.",
         },
     }
+
+
+SCORECARD_PATH = _ROOT / "reports" / "scorecard.json"
+
+
+def _pick(mapping: dict, *keys: str) -> dict:
+    return {key: mapping.get(key) for key in keys}
+
+
+def scorecard() -> dict:
+    """Trimmed projection of reports/scorecard.json, or an honest miss."""
+    path = SCORECARD_PATH
+    if not path.is_file():
+        return {
+            "available": False,
+            "reason": (
+                "reports/scorecard.json is not on this gateway. "
+                "The Docker image excludes reports/; generate one with "
+                "the SecureAI evaluation CLI or copy the file onto the host."
+            ),
+        }
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return {
+            "available": False,
+            "reason": f"reports/scorecard.json could not be read ({type(exc).__name__}).",
+        }
+    if not isinstance(data, dict):
+        return {
+            "available": False,
+            "reason": "reports/scorecard.json is not a JSON object.",
+        }
+
+    grading = data.get("grading") if isinstance(data.get("grading"), dict) else {}
+    loop_raw = data.get("loop") if isinstance(data.get("loop"), dict) else {}
+    funnel = data.get("code_funnel") if isinstance(data.get("code_funnel"), dict) else {}
+    gates_raw = grading.get("gates") if isinstance(grading.get("gates"), dict) else {}
+    gates = {}
+    for gate_id, gate in gates_raw.items():
+        if isinstance(gate, dict):
+            gates[str(gate_id)] = {
+                "passed": bool(gate.get("passed")),
+                "actual": gate.get("actual"),
+                "target": gate.get("target"),
+            }
+
+    iterations = []
+    for item in loop_raw.get("iterations") or []:
+        if not isinstance(item, dict):
+            continue
+        iterations.append(_pick(
+            item, "iteration", "confirmed_before", "confirmed_after",
+            "runtime_attacks_blocked", "deployed_exploit_blocked",
+            "regression_passed", "elapsed_ms", "status"))
+
+    runtime = []
+    for item in data.get("runtime_scenarios") or []:
+        if not isinstance(item, dict):
+            continue
+        runtime.append(_pick(
+            item, "id", "label", "attack_type", "tool",
+            "expected_decision", "actual_decision", "passed"))
+
+    code_cases = []
+    for item in data.get("code_cases") or []:
+        if not isinstance(item, dict):
+            continue
+        code_cases.append(_pick(
+            item, "cwe", "location", "severity",
+            "exploit_confirmed", "patch_accepted"))
+
+    return {
+        "available": True,
+        "generated_at": data.get("generated_at"),
+        "threshold": data.get("threshold"),
+        "gates": gates,
+        "passed": grading.get("passed"),
+        "loop": {
+            "status": loop_raw.get("status"),
+            "converged": loop_raw.get("converged"),
+            "iterations_to_converge": loop_raw.get("iterations_to_converge"),
+            "residual_confirmed": loop_raw.get("residual_confirmed"),
+            "iterations": iterations,
+        },
+        "code_funnel": funnel,
+        "runtime_scenarios": runtime,
+        "code_cases": code_cases,
+        "path": "reports/scorecard.json",
+    }

@@ -150,7 +150,11 @@ export function SourceBadge({ source }: { source: string }) {
 
 export function SeverityBadge({ severity }: { severity: string }) {
   const cls =
-    severity === "high" ? "is-deny" : severity === "medium" ? "is-hold" : "is-allow";
+    severity === "critical" || severity === "high"
+      ? "is-deny"
+      : severity === "medium"
+        ? "is-hold"
+        : "is-allow";
   return <span className={cn("ws-badge", cls)}>{severity}</span>;
 }
 
@@ -498,89 +502,165 @@ export function Bars({
   );
 }
 
+type TrendPoint = {
+  ts: number;
+  total: number;
+  allow: number;
+  deny: number;
+  require_approval: number;
+  threats: number;
+};
+
+/** Smallest 1/2/5 x 10^n step that splits `max` into at most four intervals. */
+function niceScale(max: number): { top: number; ticks: number[] } {
+  const raw = Math.max(max, 1) / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = Math.max(1, [1, 2, 5, 10].map((m) => m * magnitude).find((v) => v >= raw) ?? 1);
+  const top = Math.max(step, Math.ceil(max / step) * step);
+  const ticks: number[] = [];
+  for (let value = 0; value <= top; value += step) ticks.push(value);
+  return { top, ticks };
+}
+
+function bucketLabel(ts: number, spanSeconds: number): string {
+  const date = new Date(ts * 1000);
+  if (spanSeconds >= 86_400) {
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/** The series drawn last (visually on top) gets the rounded data-end. */
+function topKey(point: TrendPoint): string | undefined {
+  return [...TREND_SERIES].reverse().find((item) => point[item.key] > 0)?.key;
+}
+
+const TREND_SERIES = [
+  { key: "allow", label: "Allow", tone: "is-allow" },
+  { key: "require_approval", label: "Approval", tone: "is-hold" },
+  { key: "deny", label: "Deny", tone: "is-deny" },
+] as const;
+
 export function TrendChart({
   series,
+  legend = true,
 }: {
-  series: Array<{
-    ts: number;
-    total: number;
-    allow: number;
-    deny: number;
-    require_approval: number;
-    threats: number;
-  }>;
+  series: TrendPoint[];
+  /** Hide when an adjacent legend with the same colors already names the series. */
+  legend?: boolean;
 }) {
   if (!series.length) {
     return <p className="ws-hint">No activity in this window.</p>;
   }
-  const max = Math.max(...series.map((point) => point.total), 1);
-  const sumAllow = series.reduce((sum, point) => sum + point.allow, 0);
-  const sumHold = series.reduce((sum, point) => sum + point.require_approval, 0);
-  const sumDeny = series.reduce((sum, point) => sum + point.deny, 0);
-  const last = series.length - 1;
-  const tickIndexes = Array.from(
-    new Set([0, Math.ceil(last / 3), Math.ceil((2 * last) / 3), last]),
-  );
+  const { top, ticks } = niceScale(Math.max(...series.map((point) => point.total)));
+  const span = series.length > 1 ? series[1].ts - series[0].ts : 3600;
+  const totals = {
+    allow: series.reduce((sum, point) => sum + point.allow, 0),
+    require_approval: series.reduce((sum, point) => sum + point.require_approval, 0),
+    deny: series.reduce((sum, point) => sum + point.deny, 0),
+  };
+  const peak = series.reduce((best, point) => (point.total > best.total ? point : best), series[0]);
+  const labelEvery = Math.max(1, Math.ceil(series.length / 8));
+  const summary = `Decision volume: ${formatNumber(totals.allow)} allowed, ${formatNumber(totals.require_approval)} held for approval, ${formatNumber(totals.deny)} denied across ${series.length} buckets`;
+
   return (
-    <div className="ws-chart-frame">
-      <span className="ws-chart-ymax">{formatNumber(max)}</span>
-      <div className="ws-chart-gridlines" aria-hidden="true">
-        <i />
-        <i />
-      </div>
-      <div
-        className="ws-chart"
-        role="img"
-        aria-label={`Decision volume: ${formatNumber(sumAllow)} allowed, ${formatNumber(sumHold)} held for approval, ${formatNumber(sumDeny)} denied across ${series.length} buckets`}
-      >
-        {series.map((point) => {
-          const tip = `${formatClock(point.ts * 1000)} \u00b7 ${point.total} calls \u00b7 ${point.allow} allow \u00b7 ${point.require_approval} hold \u00b7 ${point.deny} deny`;
-          if (point.total <= 0) {
-            return (
-              <span key={point.ts} className="ws-chart-bucket is-empty" aria-hidden="true" />
-            );
-          }
-          return (
-            <span
-              key={point.ts}
-              className="ws-chart-bucket"
-              tabIndex={0}
-              aria-label={tip}
-            >
-              {point.allow > 0 ? (
-                <span
-                  className="ws-chart-seg is-allow"
-                  style={{ height: `${(point.allow / point.total) * 100}%` }}
-                  aria-hidden="true"
-                />
-              ) : null}
-              {point.require_approval > 0 ? (
-                <span
-                  className="ws-chart-seg is-hold"
-                  style={{ height: `${(point.require_approval / point.total) * 100}%` }}
-                  aria-hidden="true"
-                />
-              ) : null}
-              {point.deny > 0 ? (
-                <span
-                  className="ws-chart-seg is-deny"
-                  style={{ height: `${(point.deny / point.total) * 100}%` }}
-                  aria-hidden="true"
-                />
-              ) : null}
-              <span className="ws-chart-tip" aria-hidden="true">
-                {tip}
-              </span>
+    <figure className="ws-vchart">
+      {legend ? (
+      <ul className="ws-vchart-legend">
+        {TREND_SERIES.map((item) => (
+          <li key={item.key}>
+            <span className={cn("ws-vchart-swatch", item.tone)} aria-hidden="true" />
+            {item.label} <strong>{formatNumber(totals[item.key])}</strong>
+          </li>
+        ))}
+      </ul>
+      ) : null}
+      <div className="ws-vchart-body">
+        <div className="ws-vchart-yaxis" aria-hidden="true">
+          {ticks.map((tick) => (
+            <span key={tick} style={{ bottom: `${(tick / top) * 100}%` }}>
+              {formatNumber(tick)}
             </span>
-          );
-        })}
+          ))}
+        </div>
+        <div className="ws-vchart-plot">
+          {ticks.map((tick) => (
+            <i key={tick} className="ws-vchart-grid" style={{ bottom: `${(tick / top) * 100}%` }} aria-hidden="true" />
+          ))}
+          <ol className="ws-vchart-cols" aria-label={summary}>
+            {series.map((point, index) => {
+              const when = bucketLabel(point.ts, span);
+              const edge = index === 0 ? "is-first" : index === series.length - 1 ? "is-last" : undefined;
+              if (point.total <= 0) {
+                return <li key={point.ts} className="ws-vchart-col is-empty" aria-label={`${when}: no calls`} />;
+              }
+              return (
+                <li
+                  key={point.ts}
+                  className={cn("ws-vchart-col", edge)}
+                  tabIndex={0}
+                  aria-label={`${when}: ${point.total} calls, ${point.allow} allowed, ${point.require_approval} held, ${point.deny} denied`}
+                >
+                  <span className="ws-vchart-bar" style={{ height: `${(point.total / top) * 100}%` }}>
+                    {TREND_SERIES.map((item) =>
+                      point[item.key] > 0 ? (
+                        <span
+                          key={item.key}
+                          className={cn("ws-vchart-seg", item.tone, item.key === topKey(point) && "is-top")}
+                          style={{ flexGrow: point[item.key] }}
+                        />
+                      ) : null,
+                    )}
+                    {point === peak ? <span className="ws-vchart-cap">{formatNumber(point.total)}</span> : null}
+                    <span className="ws-vchart-tip" aria-hidden="true">
+                    <strong>{when}</strong>
+                    <span className="ws-vchart-tip-total">{formatNumber(point.total)} calls</span>
+                    {TREND_SERIES.map((item) => (
+                      <span key={item.key} className="ws-vchart-tip-row">
+                        <span className={cn("ws-vchart-swatch", item.tone)} />
+                        {item.label}
+                        <b>{formatNumber(point[item.key])}</b>
+                      </span>
+                    ))}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       </div>
-      <div className="ws-chart-axis" aria-hidden="true">
-        {tickIndexes.map((index) => (
-          <span key={index}>{formatClock(series[index].ts * 1000)}</span>
+      <div className="ws-vchart-xaxis" aria-hidden="true">
+        {series.map((point, index) => (
+          <span key={point.ts}>{index % labelEvery === 0 ? bucketLabel(point.ts, span) : ""}</span>
         ))}
       </div>
-    </div>
+      <details className="ws-vchart-table">
+        <summary>View as table</summary>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Bucket</th>
+              <th scope="col">Total</th>
+              <th scope="col">Allow</th>
+              <th scope="col">Approval</th>
+              <th scope="col">Deny</th>
+            </tr>
+          </thead>
+          <tbody>
+            {series.map((point) => (
+              <tr key={point.ts}>
+                <th scope="row">{bucketLabel(point.ts, span)}</th>
+                <td>{point.total}</td>
+                <td>{point.allow}</td>
+                <td>{point.require_approval}</td>
+                <td>{point.deny}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </figure>
   );
 }
 

@@ -29,13 +29,14 @@ async function request<T>(
   path: string,
   init: RequestInit = {},
   signal?: AbortSignal,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, DEFAULT_TIMEOUT_MS);
+  }, timeoutMs);
 
   const onExternalAbort = () => controller.abort();
   signal?.addEventListener("abort", onExternalAbort, { once: true });
@@ -116,6 +117,7 @@ export function apiPost<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<T> {
   return request<T>(
     path,
@@ -124,6 +126,7 @@ export function apiPost<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
     },
     signal,
+    timeoutMs,
   );
 }
 

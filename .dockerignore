@@ -10,3 +10,8 @@ __pycache__/
 *.egg-info/
 docs/AgentShield_end_to_end.pdf
 reports/
+# The Next.js console deploys as its own service; the gateway image never
+# needs it. Excluding it also keeps web/.env.local (admin password, keys)
+# and ~500MB of node_modules out of local `docker build .` contexts.
+web/
+*.local

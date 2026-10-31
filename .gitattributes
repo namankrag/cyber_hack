@@ -1,0 +1,6 @@
+# PatchProof fixtures are sha256-pinned in patchproof/fixtures.json. Force LF
+# everywhere (including Windows checkouts with core.autocrlf) so the pinned
+# hash matches on every machine, in Docker and in CI.
+patchproof/vulnbank/** text eol=lf
+patchproof/shopapi/** text eol=lf
+patchproof/fixtures.json text eol=lf

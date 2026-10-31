@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Gauge, Lock, ShieldAlert } from "lucide-react";
+import { Gauge, Lock, Shield, ShieldAlert } from "lucide-react";
 import { apiPost } from "@/lib/api/client";
+import { formatNumber } from "@/lib/api/format";
 import { toApiFailure, type ApiFailure } from "@/lib/api/errors";
 import type {
   AdminEnforceResponse,
   EnforceResponse,
   HealthResponse,
+  MetricsTotals,
   PolicyResponse,
   ReadyResponse,
 } from "@/lib/api/types";
@@ -31,12 +33,17 @@ export function EnforcementStatusCard({
   health,
   ready,
   policy,
+  totals,
+  windowLabel,
   onToggleApplied,
 }: {
   enforce: UseLiveDataResult<EnforceResponse>;
   health: UseLiveDataResult<HealthResponse>;
   ready: UseLiveDataResult<ReadyResponse>;
   policy: UseLiveDataResult<PolicyResponse>;
+  /** Decision totals for the selected window (null while loading). */
+  totals: MetricsTotals | null;
+  windowLabel: string;
   onToggleApplied: () => void;
 }) {
   const { role, requireAdmin, noteUnauthorized } = useSession();
@@ -46,6 +53,10 @@ export function EnforcementStatusCard({
   const [toggleFailure, setToggleFailure] = useState<ApiFailure | null>(null);
   const [toggleSuccess, setToggleSuccess] = useState<string | null>(null);
 
+  // Unknown (loading or failed) must never render as OFF: a security console
+  // that claims "not enforced" while the gateway is enforcing is worse than
+  // saying nothing.
+  const enforceKnown = enforce.data != null;
   const currentEnforced = enforce.data?.enforced ?? false;
 
   const applyEnforcement = async () => {
@@ -86,7 +97,7 @@ export function EnforcementStatusCard({
       <NavyFeaturePanel className="ws-enforcement-panel">
         <div className="ws-navy-head">
           <span className="ws-navy-eyebrow">Enforcement</span>
-          <StatusBadge tone={currentEnforced ? "lime" : "warn"}>
+          <StatusBadge tone={!enforceKnown ? "neutral" : currentEnforced ? "lime" : "warn"}>
             {enforce.data ? (
               currentEnforced ? (
                 "ON"
@@ -103,23 +114,63 @@ export function EnforcementStatusCard({
 
         <div className="ws-navy-hero">
           <span className="ws-navy-hero-icon">
-            {currentEnforced ? (
+            {!enforceKnown ? (
+              <Shield className="h-5 w-5" />
+            ) : currentEnforced ? (
               <Gauge className="h-5 w-5" />
             ) : (
               <ShieldAlert className="h-5 w-5" />
             )}
           </span>
-          <div>
-            <strong>
-              {currentEnforced ? "Blocking at the boundary" : "Observing only — verdicts not enforced"}
-            </strong>
-            <span>
-              {currentEnforced
-                ? "Deny and require_approval verdicts stop execution before the tool runs."
-                : "Every call is still evaluated, detected and audited, but the final decision is ALLOW with an enforcement_disabled reason naming the would-be verdict."}
-            </span>
-          </div>
+          {!enforceKnown ? (
+            enforce.failure ? (
+              <div>
+                <strong>Enforcement state unavailable</strong>
+                <span>
+                  The gateway did not report its enforcement flag ({enforce.failure.message}).
+                  Nothing is assumed until it does.
+                </span>
+              </div>
+            ) : (
+              <div aria-busy="true">
+                <strong>Checking enforcement…</strong>
+                <span>Reading the live flag from GET /v1/enforce.</span>
+              </div>
+            )
+          ) : (
+            <div>
+              <strong>
+                {currentEnforced ? "Blocking at the boundary" : "Observing only — verdicts not enforced"}
+              </strong>
+              <span>
+                {currentEnforced
+                  ? "Deny and require_approval verdicts stop execution before the tool runs."
+                  : "Every call is still evaluated, detected and audited, but the final decision is ALLOW with an enforcement_disabled reason naming the would-be verdict."}
+              </span>
+            </div>
+          )}
         </div>
+
+        {totals ? (
+          <div className="ws-navy-stats" aria-label={`Boundary decisions, ${windowLabel}`}>
+            <div className="is-hero">
+              <strong>{formatNumber(totals.blocked + totals.held)}</strong>
+              <span>stopped before execution · {windowLabel}</span>
+            </div>
+            <div>
+              <strong>{formatNumber(totals.blocked)}</strong>
+              <span>denied</span>
+            </div>
+            <div>
+              <strong>{formatNumber(totals.held)}</strong>
+              <span>held for a human</span>
+            </div>
+            <div>
+              <strong>{formatNumber(totals.allowed)}</strong>
+              <span>allowed</span>
+            </div>
+          </div>
+        ) : null}
 
         <div className="ws-navy-kv">
           <KeyValue
@@ -190,11 +241,16 @@ export function EnforcementStatusCard({
 
         <button
           type="button"
-          className={cn("ws-btn is-block", currentEnforced ? "is-danger" : "is-lime")}
+          className={cn(
+            "ws-btn is-block ws-navy-action",
+            enforceKnown && (currentEnforced ? "is-danger" : "is-lime"),
+          )}
           onClick={requestEnforcementToggle}
-          disabled={!enforce.data || togglePending}
+          disabled={!enforceKnown || togglePending}
         >
-          {!isAdmin ? (
+          {!enforceKnown ? (
+            "Enforcement state unknown"
+          ) : !isAdmin ? (
             <>
               <Lock className="h-3.5 w-3.5" /> Admin only · Turn enforcement{" "}
               {currentEnforced ? "OFF" : "ON"}

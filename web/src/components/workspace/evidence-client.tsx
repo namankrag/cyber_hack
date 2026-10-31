@@ -27,6 +27,7 @@ import type {
 import { useLiveData } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "@/components/workspace/json-block";
+import { BenchmarkPanel, ScorecardPanel } from "@/components/workspace/proof";
 import {
   Banner,
   Card,
@@ -151,6 +152,14 @@ export function EvidenceClient() {
           icon={BadgeCheck}
           tone="purple"
         />
+      </div>
+
+      <div id="benchmark" className="ws-anchor">
+        <BenchmarkPanel />
+      </div>
+
+      <div id="closed-loop" className="ws-anchor">
+        <ScorecardPanel />
       </div>
 
       <div className="ws-grid ws-grid-main">

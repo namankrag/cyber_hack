@@ -4,7 +4,6 @@ import {
   ADMIN_REQUIRED_DETAIL,
   API_KEY,
   GATEWAY,
-  MAX_PROXY_BODY_BYTES,
   csrfFailure,
   declaredBodyTooLarge,
   getSessionToken,
@@ -12,7 +11,9 @@ import {
   isPrivileged,
   jsonContentFailure,
   matchRoute,
+  maxBodyBytesFor,
   rawPathHasEncodedTraversal,
+  upstreamTimeoutMsFor,
   verifySessionToken,
 } from "@/app/api/_lib/proxy-auth";
 
@@ -48,21 +49,20 @@ async function forward(request: Request, path: string[]) {
   const key = privileged ? ADMIN_KEY || API_KEY : API_KEY;
 
   // Declared-size pre-check so an oversized body is rejected before buffering.
-  if (declaredBodyTooLarge(request)) {
-    return NextResponse.json(
-      { detail: "Request body exceeds the 64KB proxy limit." },
-      { status: 413 },
-    );
+  const bodyLimit = maxBodyBytesFor(joined);
+  const tooLarge = NextResponse.json(
+    { detail: `Request body exceeds the ${Math.round(bodyLimit / 1024)}KB proxy limit.` },
+    { status: 413 },
+  );
+  if (declaredBodyTooLarge(request, bodyLimit)) {
+    return tooLarge;
   }
 
   let body: string | undefined;
   if (method !== "GET" && method !== "HEAD") {
     const buffer = await request.arrayBuffer();
-    if (buffer.byteLength > MAX_PROXY_BODY_BYTES) {
-      return NextResponse.json(
-        { detail: "Request body exceeds the 64KB proxy limit." },
-        { status: 413 },
-      );
+    if (buffer.byteLength > bodyLimit) {
+      return tooLarge;
     }
     const jsonError = jsonContentFailure(request, buffer.byteLength);
     if (jsonError) return jsonError;
@@ -84,7 +84,7 @@ async function forward(request: Request, path: string[]) {
       headers,
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(upstreamTimeoutMsFor(joined)),
     });
     const text = await response.text();
     const contentType = response.headers.get("content-type") || "application/json";

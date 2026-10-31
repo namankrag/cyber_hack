@@ -357,10 +357,10 @@ function WorkspaceShellInner({ children }: { children: ReactNode }) {
                 </button>
 
                 <div className="ws-crumbs" aria-label="Breadcrumb">
-                  <Link href="/workspace">AgentShield</Link>
-                  <span aria-hidden="true">/</span>
-                  <span>Workspace</span>
-                  <span aria-hidden="true">/</span>
+                  <Link href="/workspace" className="ws-crumb-prefix">AgentShield</Link>
+                  <span aria-hidden="true" className="ws-crumb-prefix">/</span>
+                  <span className="ws-crumb-prefix">Workspace</span>
+                  <span aria-hidden="true" className="ws-crumb-prefix">/</span>
                   <strong aria-current="page">{active.label}</strong>
                 </div>
 

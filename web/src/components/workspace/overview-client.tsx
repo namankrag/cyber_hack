@@ -19,6 +19,7 @@ import { ActiveSessionsCard } from "./overview/ActiveSessionsCard";
 import { DecisionVolumeCard } from "./overview/DecisionVolumeCard";
 import { EnforcementStatusCard } from "./overview/EnforcementStatusCard";
 import { InsightsRow } from "./overview/InsightsRow";
+import { BenchmarkPanel, ScorecardPanel } from "./proof";
 import { KpiRow } from "./overview/KpiRow";
 import { OverviewHeader } from "./overview/OverviewHeader";
 import { PendingApprovals } from "./overview/PendingApprovals";
@@ -116,6 +117,8 @@ export function OverviewClient() {
           health={health}
           ready={ready}
           policy={policy}
+          totals={metrics.data?.totals ?? null}
+          windowLabel={timeWindowLabels[windowKey]}
           onToggleApplied={() => {
             void Promise.all([metrics.refresh(), audit.refresh()]);
           }}
@@ -135,6 +138,11 @@ export function OverviewClient() {
 
       <div className="ws-grid ws-grid-2">
         <InsightsRow metrics={metrics} />
+      </div>
+
+      <div className="ws-grid ws-grid-2">
+        <BenchmarkPanel compact />
+        <ScorecardPanel compact />
       </div>
 
       <Banner tone="purple" icon={ShieldCheck}>

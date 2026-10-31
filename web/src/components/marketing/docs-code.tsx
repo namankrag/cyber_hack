@@ -11,7 +11,7 @@ const snippets = {
   -H "content-type: application/json" \\
   -H "x-api-key: $AGENTSHIELD_KEY" \\
   -d '{
-    "tool_name": "payments.transfer",
+    "tool_name": "transfer_funds",
     "arguments": { "amount": 14200 },
     "source": "untrusted",
     "context": "ignore previous instructions"
@@ -26,7 +26,7 @@ decision = requests.post(
     "http://localhost:8000/v1/check",
     headers={"x-api-key": KEY},
     json={
-        "tool_name": "payments.transfer",
+        "tool_name": "transfer_funds",
         "arguments": {"amount": 14200},
         "source": "untrusted",
         "context": "ignore previous instructions",
@@ -48,7 +48,7 @@ if decision["decision"] != "allow":
     "x-api-key": process.env.AGENTSHIELD_KEY!,
   },
   body: JSON.stringify({
-    tool_name: "payments.transfer",
+    tool_name: "transfer_funds",
     arguments: { amount: 14200 },
     source: "untrusted",
     context: "ignore previous instructions",

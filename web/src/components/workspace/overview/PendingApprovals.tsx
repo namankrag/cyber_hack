@@ -21,7 +21,7 @@ export function PendingApprovals({
   approvals: UseLiveDataResult<ApprovalsResponse>;
 }) {
   const pendingList = useMemo(
-    () => (approvals.data?.pending ?? []).slice(0, 5),
+    () => (approvals.data?.pending ?? []).slice(0, 3),
     [approvals.data],
   );
   const pendingTotal = approvals.data?.summary.pending ?? 0;
@@ -59,6 +59,12 @@ export function PendingApprovals({
                   </div>
                 </div>
               ))}
+              {pendingTotal > pendingList.length ? (
+                <Link href="/workspace/approvals" className="ws-link ws-fs-meta">
+                  +{formatNumber(pendingTotal - pendingList.length)} more waiting in the Approval Center{" "}
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              ) : null}
             </div>
           ) : (
             <EmptyState

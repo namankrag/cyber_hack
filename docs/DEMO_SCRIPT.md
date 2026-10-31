@@ -1,5 +1,9 @@
 # Demo script — 3 minutes, one take (problem → OFF leaks → ON blocks + reason → approval click → benchmark numbers → scale + business)
 
+Presenting from the deployed web console instead of a terminal? Use the
+click path in [JUDGE_GUIDE.md](JUDGE_GUIDE.md); the beats below are the
+terminal version of the same story.
+
 Keep the fallback recording ready (unlisted link + local mp4). If the
 network or projector fails, play it and walk judges through
 semgrep.json + the pytest log + scorecard.html.
@@ -66,5 +70,6 @@ proof, so even a compromised model cannot leak.
 - pytest log, semgrep.json (0 findings), demo console log.
 - 3 curls: check DENY, enforce toggle, evidence tail.
 - `eval-out/scorecard.html` (8/8 gates) + redacted audit tail sample.
-- State non-goals aloud: replayable tokens (roadmap), no upstream MCP
-  proxy yet, TLS/secrets operator-owned (THREAT_MODEL.md).
+- State non-goals aloud: per-process token replay cache (shared backend
+  for multi-worker), stdio-only upstream MCP proxy (no HTTP/SSE yet),
+  TLS/secrets operator-owned (THREAT_MODEL.md).

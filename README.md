@@ -15,8 +15,12 @@ succeed — and make sure it still can't *do* anything.
 
 ## The 30-second version
 
-**Dashboard:** `uvicorn agentshield.gateway.app:app` → open
-`http://127.0.0.1:8000/` (live decisions, benchmark panel, evidence).
+**Judges:** start with [docs/JUDGE_GUIDE.md](docs/JUDGE_GUIDE.md), a
+3-minute click path through the live demo.
+**Web console (local):** run the gateway (`uvicorn agentshield.gateway.app:app`),
+then `cd web && npm install && npm run dev` and open `http://localhost:3000`.
+The homepage "Try a decision" sends real calls to the gateway; `/workspace` is
+the operator console (overview, approvals, red team, audit, evidence).
 **One-command run:** `python -m examples.demo` (5 scenarios, keyless).
 
 | Metric (frozen 84-case bench, `docs/BENCHMARK.md`) | OFF (bypass) | ON (enforced) |
@@ -245,7 +249,7 @@ Parallax PS-01 AgentShield. Muse branch head: red-loop hardened tree —
 
 - `models.py:18-120`: TrustLevel default UNTRUSTED, Decision ALLOW < REQUIRE_APPROVAL < DENY, `most_restrictive()`, ToolCall id `call_<12hex>`.
 - `policy/engine.py:33-158`: 8 steps unknown_tool → tool_disabled → detectors → detector_error → untrusted_source → allow_sources → require_approval → default_allow. Unknown tool holds REQUIRE_APPROVAL fail-closed. `transfer_funds` disabled DENY.
-- `provenance.py:29-126`: trusted_scope + HMAC mint/verify + insecure dev-mode fail-closed. Tokens bind source only, replayable by design (planned session/nonce/expiry).
+- `provenance.py`: trusted_scope + HMAC mint/verify + insecure dev-mode fail-closed. Tokens are single-use (nonce + replay cache), expiring and optionally session-bound; the replay cache is per-process (multi-worker needs a shared backend).
 - `enforce.py:34-79`: guard/enforced PEP raises before body. `/v1/check` is advisory PDP.
 - `audit/log.py:28-98`: append-only JSONL, exact lowercased-key redaction, tail block 8192, limit <= 500.
 - `gateway/app.py:31-118`: GET /health, /ready (503 unless loaded), POST /v1/check, GET /v1/audit, require_api_key. App 0.2.0 (`__init__.py` 0.2.0 matches).
@@ -288,7 +292,7 @@ Pitch: AI agents get hijacked by any doc they read. AgentShield is the code boun
 
 ### Known gaps (code-verified; full ledger: docs/RED_LOOP_REPORT.md)
 
-HMAC replayable (roadmap: session/nonce/expiry). Dev-mode honors claims,
+Token replay cache is per-process (shared backend for multi-worker). Dev-mode honors claims,
 flagged in `/v1/evidence`. No rotation/retention (operator-owned).
 Unknown tool holds, not DENY (fail-closed default). Paraphrased no-keyword
 injections need the LLM layer (no key in this build; contained: untrusted

@@ -16,6 +16,23 @@ export const ADMIN_SESSION_COOKIE = "asg_admin";
 export const SESSION_TTL_SECONDS = 8 * 60 * 60;
 export const MAX_PROXY_BODY_BYTES = 64 * 1024;
 
+/**
+ * The Document Lab upload is the one route that carries a whole file (a
+ * base64 PDF up to 2MB). It gets its own explicit budget and a longer
+ * upstream timeout (the first PatchProof run takes several seconds); every
+ * other route keeps the 64KB / 12s defaults.
+ */
+const DOCUMENT_ANALYZE_ROUTE = "v1/document/analyze";
+export const MAX_DOCUMENT_BODY_BYTES = 3 * 1024 * 1024;
+
+export function maxBodyBytesFor(joinedPath: string): number {
+  return joinedPath === DOCUMENT_ANALYZE_ROUTE ? MAX_DOCUMENT_BODY_BYTES : MAX_PROXY_BODY_BYTES;
+}
+
+export function upstreamTimeoutMsFor(joinedPath: string): number {
+  return joinedPath === DOCUMENT_ANALYZE_ROUTE ? 60_000 : 12_000;
+}
+
 export const ADMIN_REQUIRED_DETAIL =
   "Administrator login required. Sign in on the Settings page with the admin password, then retry.";
 
@@ -49,6 +66,11 @@ const EXACT_ROUTES = new Set([
   "GET v1/redteam/history",
   "POST v1/redteam/run",
   "GET v1/evidence/reports",
+  "GET v1/document/samples",
+  "POST v1/document/analyze",
+  "POST v1/mcp/demo",
+  "POST v1/trust/demo",
+  "GET v1/evidence/scorecard",
 ]);
 
 const CALL_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -161,9 +183,12 @@ export function jsonContentFailure(request: Request, bodyBytes: number): NextRes
 }
 
 /** Pre-read body cap from the declared Content-Length, when present. */
-export function declaredBodyTooLarge(request: Request): boolean {
+export function declaredBodyTooLarge(
+  request: Request,
+  limit: number = MAX_PROXY_BODY_BYTES,
+): boolean {
   const declared = request.headers.get("content-length");
-  return declared !== null && /^\d+$/.test(declared.trim()) && Number(declared) > MAX_PROXY_BODY_BYTES;
+  return declared !== null && /^\d+$/.test(declared.trim()) && Number(declared) > limit;
 }
 
 function adminPassword(): string {

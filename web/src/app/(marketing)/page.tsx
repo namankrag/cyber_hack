@@ -146,7 +146,7 @@ export default function HomePage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <small>finance-copilot wants to call</small>
-                      <strong>payments.transfer</strong>
+                      <strong>transfer_funds</strong>
                     </span>
                     <span className="hp-risk">HIGH RISK</span>
                   </div>
@@ -171,7 +171,7 @@ export default function HomePage() {
                         <strong>Threat scan</strong>
                         <small>Instruction override</small>
                       </span>
-                      <span className="hp-score">0.94</span>
+                      <span className="hp-score">1.0</span>
                     </div>
                     <span className="hp-pipeline-line" aria-hidden="true" />
                     <div className="hp-node">
@@ -472,7 +472,7 @@ export default function HomePage() {
                       <Terminal className="h-4 w-4" />
                     </span>
                     <span>
-                      <strong>payments.transfer</strong>
+                      <strong>transfer_funds</strong>
                       <small>requested action</small>
                     </span>
                     <span className="prov-tag">BLOCKED</span>
@@ -636,7 +636,7 @@ export default function HomePage() {
                     <span className="audit-mini-dot is-deny" />
                     <span>
                       <strong>DENY</strong>
-                      <small>payments.transfer</small>
+                      <small>transfer_funds</small>
                     </span>
                     <span>9c1e…</span>
                   </div>
@@ -644,7 +644,7 @@ export default function HomePage() {
                     <span className="audit-mini-dot is-allow" />
                     <span>
                       <strong>ALLOW</strong>
-                      <small>crm.accounts.read</small>
+                      <small>search_web</small>
                     </span>
                     <span>4e71…</span>
                   </div>
@@ -652,7 +652,7 @@ export default function HomePage() {
                     <span className="audit-mini-dot is-hold" />
                     <span>
                       <strong>HOLD</strong>
-                      <small>gmail.send_external</small>
+                      <small>read_document</small>
                     </span>
                     <span>2b90…</span>
                   </div>

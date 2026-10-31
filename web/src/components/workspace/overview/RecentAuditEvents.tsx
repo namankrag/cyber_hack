@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { ArrowRight, Database } from "lucide-react";
 import Link from "next/link";
-import { decisionClass, formatTimestamp } from "@/lib/api/format";
+import { decisionClass, formatRelative, formatTimestamp } from "@/lib/api/format";
 import type { AuditResponse } from "@/lib/api/types";
 import type { UseLiveDataResult } from "@/lib/hooks/use-live-data";
 import { cn } from "@/lib/utils";
@@ -68,8 +68,8 @@ export function RecentAuditEvents({
                       ) || "";
                     return (
                       <tr key={`${entry.call_id}-${String(entry.ts)}`}>
-                        <td className="is-nowrap ws-ink-soft">
-                          {formatTimestamp(entry.ts)}
+                        <td className="is-nowrap ws-ink-soft" title={formatTimestamp(entry.ts)}>
+                          {formatRelative(entry.ts)}
                         </td>
                         <td>
                           <DecisionBadge decision={entry.decision} short />
@@ -94,7 +94,7 @@ export function RecentAuditEvents({
                               decisionClass(entry.decision),
                             )}
                           >
-                            {entry.call_id}
+                            <span title={entry.call_id}>…{entry.call_id.slice(-6)}</span>
                           </Link>
                         </td>
                       </tr>

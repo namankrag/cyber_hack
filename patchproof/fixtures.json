@@ -4,7 +4,7 @@
     "vulnbank": {
       "dir": "vulnbank",
       "files": {
-        "app.py": "460846517a31e48b915a4ffc370965ab46cce34869bf58eda7beb8b547d811e8"
+        "app.py": "bcc14521374eed8aa2b2e966ecf7012aa9109330c56a8138173b3002548137c0"
       }
     },
     "shopapi": {
