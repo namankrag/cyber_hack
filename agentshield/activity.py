@@ -12,6 +12,7 @@ signal for the gate, not a full event store (that's the audit log's job).
 """
 from __future__ import annotations
 
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -34,24 +35,31 @@ class SessionContext:
     window_s: float = 600.0                       # how far back "recent" reaches
     events: deque = field(default_factory=lambda: deque(maxlen=100))
     current_task: str = ""                        # what the user actually asked for
+    # Reads and writes may race (e.g. Document Lab checks several tool calls
+    # concurrently): a lock keeps appends and snapshot-reads consistent.
+    _lock: object = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def record_ingest(self, ingested) -> None:
-        self.events.append(ActivityEvent(
-            kind="ingest", ts=time.time(), trust=ingested.trust,
-            risk=ingested.risk_score,
-            detail=f"{ingested.provenance.channel.value}"
-                   f"{' (hidden content)' if ingested.has_hidden_content else ''}",
-        ))
+        with self._lock:
+            self.events.append(ActivityEvent(
+                kind="ingest", ts=time.time(), trust=ingested.trust,
+                risk=ingested.risk_score,
+                detail=f"{ingested.provenance.channel.value}"
+                       f"{' (hidden content)' if ingested.has_hidden_content else ''}",
+            ))
 
     def record_tool(self, call, decision: str) -> None:
-        self.events.append(ActivityEvent(
-            kind="tool", ts=time.time(), trust=call.source,
-            detail=f"{call.tool_name} -> {decision}",
-        ))
+        with self._lock:
+            self.events.append(ActivityEvent(
+                kind="tool", ts=time.time(), trust=call.source,
+                detail=f"{call.tool_name} -> {decision}",
+            ))
 
     def _recent(self):
         cutoff = time.time() - self.window_s
-        return [e for e in self.events if e.ts >= cutoff]
+        with self._lock:
+            snapshot = list(self.events)   # copy under lock, then iterate freely
+        return [e for e in snapshot if e.ts >= cutoff]
 
     def recent_untrusted_ingests(self) -> list[ActivityEvent]:
         return [e for e in self._recent()

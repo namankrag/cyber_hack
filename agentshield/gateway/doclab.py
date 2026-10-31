@@ -38,8 +38,10 @@ import threading
 import time
 from pathlib import Path
 
+from ..activity import SessionContext
 from ..detection.heuristic import HeuristicDetector
 from ..engine_factory import AgentShield
+from ..ingestion import Channel, Provenance, ingest as _ingest_content
 from ..models import Decision, ToolCall, TrustLevel
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -470,6 +472,19 @@ def analyze(shield, body: dict) -> dict:
     flagged = _flag_sentences(sentences)
     injected = _injected_actions(sentences, flagged)
 
+    # Ingestion inspection (shared engine): treat the upload as untrusted
+    # content and surface hidden/obfuscated text (HTML-hidden, comments,
+    # zero-width, base64) that plain sentence-scanning misses. The result is
+    # recorded on a SessionContext so the gate's activity-aware exfiltration
+    # guard engages across the attempted tool calls below.
+    content_type = "html" if ("<" in text and ">" in text) else "text"
+    inspected = _ingest_content(
+        text, Provenance(Channel.DOCUMENT, origin=filename[:80]),
+        content_type=content_type, detectors=[HeuristicDetector()])
+    session = SessionContext(session_id=f"doclab-{sha[:8]}",
+                             current_task="summarize this document")
+    session.record_ingest(inspected)
+
     metadata = {"demo": True, "surface": "document-lab", "document": filename[:80],
                 "document_sha256": sha[:16], "agent": "document-agent",
                 "session_id": f"doclab-{sha[:8]}"}
@@ -493,7 +508,8 @@ def analyze(shield, body: dict) -> dict:
     # Independent calls: decide them concurrently so a slow detector (an LLM
     # round-trip) costs one latency, not one per call. Order is preserved.
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(calls)) as pool:
-        results = list(pool.map(runtime.check, calls))
+        results = list(pool.map(
+            lambda c: runtime.check(c, session=session), calls))
     decisions = [_decision_view(result, step) for result, step in zip(results, plan)]
 
     counts = {"allow": 0, "deny": 0, "require_approval": 0}
@@ -528,6 +544,20 @@ def analyze(shield, body: dict) -> dict:
                 "document_scan": decisions[0]["detections"] if decisions else [],
                 "flagged": flagged[:12],
                 "flagged_total": len(flagged),
+            },
+            # Ingestion inspection: hidden/obfuscated content surfaced before
+            # the document entered the agent context (shared ingestion engine).
+            "ingestion": {
+                "content_type": content_type,
+                "has_hidden_content": inspected.has_hidden_content,
+                "risk_score": inspected.risk_score,
+                "signals": inspected.signals[:6],
+                "hidden_segments": [{"reason": r, "text": t[:200]}
+                                    for r, t in inspected.hidden_segments[:8]],
+                "decoded_segments": [{"reason": r, "text": t[:200]}
+                                     for r, t in inspected.decoded_segments[:8]],
+                "quoted_segments": [q[:200] for q in inspected.quoted_segments[:5]],
+                "agent_text_preview": inspected.agent_text()[:600],
             },
             "agent_note": ("The demo agent is deliberately naive: it attempts every action the "
                            "document asks for. AgentShield decides each one before it runs."),
