@@ -484,6 +484,17 @@ def mcp_demo_run() -> dict:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.post("/v1/mcp/call", dependencies=[Depends(require_api_key)])
+def mcp_call(body: dict) -> dict:
+    """One caller-composed tools/call over a real MCP session (see mcp_demo.call)."""
+    try:
+        return mcp_demo.call(shield, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @app.post("/v1/trust/demo", dependencies=[Depends(require_api_key)])
 def trust_demo_run() -> dict:
     """Claimed-user calls with no token, a genuine token, and a replayed token.

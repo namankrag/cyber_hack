@@ -69,6 +69,7 @@ const EXACT_ROUTES = new Set([
   "GET v1/document/samples",
   "POST v1/document/analyze",
   "POST v1/mcp/demo",
+  "POST v1/mcp/call",
   "POST v1/trust/demo",
   "GET v1/evidence/scorecard",
 ]);

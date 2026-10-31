@@ -721,6 +721,27 @@ export interface McpDemoCall {
   outcome: "executed" | "blocked";
   decision: DecisionValue | null;
   text: string;
+  /** From the audit record this call wrote (null if it could not be matched). */
+  call_id: string | null;
+  audit_decision: DecisionValue | null;
+  reasons: PolicyReason[];
+}
+
+export interface McpCallResponse {
+  tools: string[];
+  tool: string;
+  arguments: Record<string, unknown>;
+  asserted_source: "user" | "untrusted";
+  token_attached: boolean;
+  context_chars: number;
+  outcome: "executed" | "blocked";
+  decision: DecisionValue | null;
+  text: string;
+  call_ms: number;
+  provenance_mode: "hmac" | "dev";
+  call_id: string | null;
+  audit_decision: DecisionValue | null;
+  reasons: PolicyReason[];
 }
 
 export interface McpDemoResponse {
