@@ -41,6 +41,19 @@ class ToolPolicy(BaseModel):
     # What to do when the source is not allowed for this tool.
     on_disallowed_source: Decision = Decision.REQUIRE_APPROVAL
 
+    # --- deterministic data-flow controls (least privilege) ---------------
+    # This tool sends data outward (email, webhook, upload, post). Egress tools
+    # get destination-allow-list and exfiltration checks.
+    is_egress: bool = False
+
+    # Which argument names carry destinations (addresses/URLs). Empty = scan all
+    # argument values, so an injection can't hide a sink by renaming the field.
+    destination_args: list[str] = Field(default_factory=list)
+
+    # This tool reads secrets / credentials; access is guarded when the request
+    # is driven by untrusted content (secret access without need).
+    reads_secrets: bool = False
+
 
 class PolicyDefaults(BaseModel):
     """Org-wide fallbacks applied when no tool-specific rule decides."""
@@ -64,6 +77,22 @@ class PolicyDefaults(BaseModel):
 
     # Decision to use when we fail closed due to detector error.
     detector_error_decision: Decision = Decision.REQUIRE_APPROVAL
+
+    # --- deterministic data-flow controls -------------------------------
+    # Approved outbound destinations: email domains, URL hosts, or exact
+    # addresses/URLs. An egress tool sending to anything else is escalated.
+    destination_allowlist: list[str] = Field(default_factory=list)
+
+    # An egress tool sending to a non-allow-listed destination.
+    on_untrusted_destination: Decision = Decision.REQUIRE_APPROVAL
+
+    # The exfiltration signature: egress to a non-allow-listed destination while
+    # the call is driven by untrusted content (bad provenance or a recent
+    # untrusted ingest). This is the core indirect-injection block.
+    on_exfiltration_pattern: Decision = Decision.DENY
+
+    # A secret-reading tool invoked under untrusted influence.
+    on_unneeded_secret_access: Decision = Decision.REQUIRE_APPROVAL
 
 
 def _norm_tool_key(name: str) -> str:
