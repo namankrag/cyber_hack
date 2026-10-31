@@ -193,6 +193,7 @@ export function verifySessionToken(token: string | null): boolean {
   if (!token || !adminPasswordConfigured()) return false;
   const match = /^(\d+)\.([0-9a-f]{64})$/.exec(token.trim());
   if (!match) return false;
+  if (revokedTokens.has(match[2])) return false;
   const exp = Number(match[1]);
   if (!Number.isSafeInteger(exp) || exp * 1000 <= Date.now()) return false;
   let expected: string;
@@ -204,6 +205,92 @@ export function verifySessionToken(token: string | null): boolean {
   const provided = Buffer.from(match[2], "utf8");
   const wanted = Buffer.from(expected, "utf8");
   return provided.length === wanted.length && timingSafeEqual(provided, wanted);
+}
+
+/**
+ * Login attempt throttling. The gateway rate limiter does not see
+ * this route (different server), so failed password guesses are capped
+ * per client IP here: 10 failures per 10 minutes, then HTTP 429.
+ * Single-instance memory only — see note on revokedTokens below.
+ */
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 10;
+const loginFailures = new Map<string, { windowStart: number; count: number }>();
+
+export function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0].trim();
+    if (first) return first;
+  }
+  return "unknown";
+}
+
+function pruneLoginFailures(): void {
+  if (loginFailures.size <= 1024) return;
+  for (const key of loginFailures.keys()) {
+    loginFailures.delete(key);
+    if (loginFailures.size <= 1024) break;
+  }
+}
+
+export function loginThrottled(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginFailures.get(ip);
+  if (!entry) return false;
+  if (now - entry.windowStart >= LOGIN_WINDOW_MS) {
+    loginFailures.delete(ip);
+    return false;
+  }
+  return entry.count >= LOGIN_MAX_FAILURES;
+}
+
+export function noteLoginFailure(ip: string): void {
+  const now = Date.now();
+  const entry = loginFailures.get(ip);
+  if (!entry || now - entry.windowStart >= LOGIN_WINDOW_MS) {
+    pruneLoginFailures();
+    loginFailures.set(ip, { windowStart: now, count: 1 });
+    return;
+  }
+  entry.count += 1;
+}
+
+export function noteLoginSuccess(ip: string): void {
+  loginFailures.delete(ip);
+}
+
+/**
+ * Server-side session revocation. Logout clears the cookie, but the
+ * bearer token itself stays valid until expiry (up to 8h), so a copied
+ * token could otherwise be replayed. Revoked signatures are rejected
+ * here until their embedded expiry passes.
+ *
+ * Single-instance memory only: with several server instances (or
+ * serverless isolates) a logout on one instance does not propagate.
+ * The 8h TTL still bounds replay, and theft requires cookie compromise
+ * (HttpOnly + SameSite). A shared store would be needed for strict
+ * multi-instance revocation.
+ */
+const revokedTokens = new Map<string, number>();
+
+function pruneRevoked(nowSec: number): void {
+  for (const [sig, exp] of revokedTokens) {
+    if (exp <= nowSec) revokedTokens.delete(sig);
+  }
+  while (revokedTokens.size > 2048) {
+    const oldest = revokedTokens.keys().next();
+    if (oldest.done) break;
+    revokedTokens.delete(oldest.value);
+  }
+}
+
+export function revokeSessionToken(token: string | null): void {
+  if (!token) return;
+  const match = /^(\d+)\.([0-9a-f]{64})$/.exec(token.trim());
+  if (!match) return;
+  pruneRevoked(Math.floor(Date.now() / 1000));
+  revokedTokens.set(match[2], Number(match[1]));
 }
 
 export function getSessionToken(request: Request): string | null {

@@ -3,10 +3,14 @@ import {
   MAX_PROXY_BODY_BYTES,
   adminPasswordConfigured,
   buildSessionCookie,
+  clientIp,
   csrfFailure,
   declaredBodyTooLarge,
   jsonContentFailure,
+  loginThrottled,
   mintSessionToken,
+  noteLoginFailure,
+  noteLoginSuccess,
   passwordOk,
 } from "@/app/api/_lib/proxy-auth";
 
@@ -51,10 +55,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail: "Request body must be valid JSON." }, { status: 400 });
   }
 
+  const ip = clientIp(request);
+  if (loginThrottled(ip)) {
+    return NextResponse.json(
+      { detail: "Too many failed sign-in attempts. Try again in a few minutes." },
+      { status: 429 },
+    );
+  }
+
   if (!passwordOk(password)) {
+    noteLoginFailure(ip);
     return NextResponse.json({ detail: "Invalid admin password." }, { status: 401 });
   }
 
+  noteLoginSuccess(ip);
   const response = NextResponse.json({ authenticated: true });
   response.headers.set("Set-Cookie", buildSessionCookie(mintSessionToken()));
   return response;
