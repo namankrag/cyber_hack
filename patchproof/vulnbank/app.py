@@ -78,6 +78,11 @@ def _init_docs() -> str:
     # A nested public file: confinement patches must keep subdirectories
     # reachable (over-blocking pins), while "../" escapes stay rejected.
     os.makedirs(os.path.join(docs, "sub"), exist_ok=True)
+    # Directories the nested traversal variants walk through. POSIX resolves
+    # "x/../.." only when x exists (Windows folds it lexically), so create them
+    # to keep the exploit variants deterministic on Linux/macOS/Docker.
+    for d in ("x", "a/b", "sub1/sub2"):
+        os.makedirs(os.path.join(docs, d), exist_ok=True)
     pathlib.Path(docs, "welcome.txt").write_text(
         "Welcome to VulnBank. This document is public.\n")
     pathlib.Path(docs, "sub", "note.txt").write_text(
